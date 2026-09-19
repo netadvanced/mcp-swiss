@@ -350,21 +350,19 @@ export const gwrTools = [
   {
     name: "search_buildings",
     description:
-      "Search the Swiss Federal Register of Buildings and Dwellings (GWR/RegBL, BFS) by address. " +
-      "Returns matching buildings with EGID (federal building ID), address, coordinates, category, class, " +
-      "construction year, floors and dwelling count. Use get_building with the EGID for full details.",
+      "Find buildings in the federal buildings register (GWR/RegBL) by address; gives EGIDs for get_building",
     inputSchema: {
       type: "object",
       required: ["address"],
       properties: {
         address: {
           type: "string",
-          description:
-            'Address text: street + number + postcode/locality (e.g. "Place de la Palud 2 Lausanne", "Bundesplatz 3 3011 Bern").',
+          description: "Street, number, locality, e.g. Bundesplatz 3 3011 Bern",
         },
         limit: {
           type: "number",
-          description: "Maximum number of buildings to return (default: 5, max: 20).",
+          description: "max 20",
+          default: 5,
         },
       },
     },
@@ -372,21 +370,19 @@ export const gwrTools = [
   {
     name: "get_building",
     description:
-      "Get the full GWR record of a Swiss building by EGID (federal building identifier): category, class, status, " +
-      "construction year/period, demolition year, floors, footprint area, volume, energy reference area, " +
-      "heating and hot-water systems (heat generator + energy source), parcel/EGRID, municipality, canton, " +
-      "coordinates, all entrances/addresses and its dwellings (EWID, floor, rooms, area, kitchen). Source: BFS.",
+      "Full GWR record of one building by EGID: construction, floors, areas, heating/hot-water system and energy source, parcel (EGRID), entrances, dwellings",
     inputSchema: {
       type: "object",
       required: ["egid"],
       properties: {
         egid: {
           type: "number",
-          description: "Federal building identifier EGID (e.g. 2119257). Use search_buildings to find it from an address.",
+          description: "EGID, e.g. 2119257",
         },
         max_dwellings: {
           type: "number",
-          description: "Maximum number of dwellings to list (default: 50, max: 500; 0 = summary only).",
+          description: "max 500; 0 = summary only",
+          default: 50,
         },
       },
     },
@@ -394,21 +390,22 @@ export const gwrTools = [
   {
     name: "buildings_near",
     description:
-      "List GWR buildings around a WGS84 point (lat/lon) within a small radius, closest first. " +
-      "Returns EGID, address, distance, category, class, construction year, floors and dwelling count.",
+      "GWR buildings nearest a WGS84 point (small radius), with EGIDs",
     inputSchema: {
       type: "object",
       required: ["lat", "lon"],
       properties: {
-        lat: { type: "number", description: "Latitude (WGS84), e.g. 46.5218" },
-        lon: { type: "number", description: "Longitude (WGS84), e.g. 6.6329" },
+        lat: { type: "number", description: "Latitude (WGS84)" },
+        lon: { type: "number", description: "Longitude (WGS84)" },
         radius: {
           type: "number",
-          description: "Search radius in metres (default: 50, max: 250).",
+          description: "Metres, max 250",
+          default: 50,
         },
         limit: {
           type: "number",
-          description: "Maximum number of buildings to return (default: 10, max: 50).",
+          description: "max 50",
+          default: 10,
         },
       },
     },
