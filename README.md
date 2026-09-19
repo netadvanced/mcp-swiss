@@ -337,7 +337,7 @@ docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
 | Bearer token for `/mcp` | — | `MCP_AUTH_TOKEN` | none |
 | Allowed `Host` headers (DNS-rebinding protection) | — | `MCP_ALLOWED_HOSTS` (comma list) | loopback only when bound to loopback |
 | CORS origin for browser clients | — | `MCP_CORS_ORIGIN` | none |
-| Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `15000` |
+| Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `30000` |
 
 Each session gets its own server instance; idle sessions are dropped after 30 minutes. All data is public, but **set `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` whenever the port is reachable from outside**, or anyone can spend your outbound quota on the upstream APIs.
 

@@ -1,10 +1,13 @@
 // Integration tests — hit real BFS and opendata.swiss APIs
 // Run with: npx vitest run tests/integration/statistics.integration.test.ts
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { handleStatistics } from "../../src/modules/statistics.js";
 
 // ── get_population: Switzerland ──────────────────────────────────────────────
+
+// BFS PxWeb is slow on a cold cache — allow for it
+vi.setConfig({ testTimeout: 130_000 });
 
 describe("get_population — live (BFS PxWeb)", () => {
   it("returns Switzerland total population for latest year", async () => {

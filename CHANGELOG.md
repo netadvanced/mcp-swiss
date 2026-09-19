@@ -33,7 +33,7 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 ### Changed
 - Package renamed `mcp-swiss-ng` (bin `mcp-swiss-ng`); not on npm yet — install with `npx -y github:netadvanced/mcp-swiss-ng` or `ghcr.io/netadvanced/mcp-swiss-ng`
 - Node.js 22+ required (Node 20 is EOL); CI on 22/24, Docker `node:24-alpine`
-- All outbound requests share one client: `mcp-swiss-ng/<version>` User-Agent and a 15 s timeout (`MCP_SWISS_TIMEOUT_MS`); several modules previously had no timeout
+- All outbound requests share one client: `mcp-swiss-ng/<version>` User-Agent and a 30 s timeout (`MCP_SWISS_TIMEOUT_MS`; 120 s for the slow BFS PxWeb API); several modules previously had no timeout
 - Server reports the real package version (was hard-coded `0.5.8`)
 - `outdoor` preset includes `pollen`; `--list-modules` shows module descriptions
 - `src/index.ts` split into `registry`, `config`, `server`, `http-server`; importing modules no longer starts a server

@@ -157,6 +157,14 @@ describe('httpFetch', () => {
     expect(USER_AGENT).toBe(`mcp-swiss/${VERSION}`);
   });
 
+  it('honours a per-call timeoutMs and does not forward it to fetch', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('timeout', 'TimeoutError'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(httpFetch('https://example.com/slow', { timeoutMs: 120_000 })).rejects.toThrow('timed out after 120s');
+    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('timeoutMs');
+  });
+
   it('turns an abort timeout into a readable error', async () => {
     const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));

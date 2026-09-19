@@ -14,29 +14,35 @@ export const VERSION = readVersion();
 export const USER_AGENT = `mcp-swiss/${VERSION}`;
 
 const envTimeout = Number(process.env.MCP_SWISS_TIMEOUT_MS);
-export const DEFAULT_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 15000;
+export const DEFAULT_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 30000;
+
+export interface HttpOptions extends RequestInit {
+  /** Per-call override of DEFAULT_TIMEOUT_MS for known-slow upstreams. */
+  timeoutMs?: number;
+}
 
 /**
  * fetch() wrapper used by every module: sets the mcp-swiss User-Agent and
  * aborts after DEFAULT_TIMEOUT_MS (override with MCP_SWISS_TIMEOUT_MS) so a
  * hanging upstream API cannot stall a tool call forever.
  */
-export async function httpFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function httpFetch(url: string, options: HttpOptions = {}): Promise<Response> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options;
   try {
     return await fetch(url, {
-      ...options,
-      headers: { "User-Agent": USER_AGENT, ...(options.headers as Record<string, string> | undefined) },
-      signal: options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      ...init,
+      headers: { "User-Agent": USER_AGENT, ...(init.headers as Record<string, string> | undefined) },
+      signal: init.signal ?? AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
-      throw new Error(`Request timed out after ${DEFAULT_TIMEOUT_MS / 1000}s — ${url}`, { cause: err });
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s — ${url}`, { cause: err });
     }
     throw err;
   }
 }
 
-export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+export async function fetchJSON<T>(url: string, options?: HttpOptions): Promise<T> {
   const response = await httpFetch(url, {
     ...options,
     headers: {

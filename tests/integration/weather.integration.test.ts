@@ -2,7 +2,14 @@
 import { describe, it, expect } from 'vitest';
 import { handleWeather } from '../../src/modules/weather.js';
 
-describe('Weather API (live)', () => {
+// api.existenz.ch refuses connections from some networks (e.g. GitHub-hosted
+// runners). Skip instead of failing when it's unreachable from here.
+const reachable = await fetch('https://api.existenz.ch/apiv1/smn/locations', { signal: AbortSignal.timeout(10_000) })
+  .then((r) => r.ok)
+  .catch(() => false);
+if (!reachable) console.warn('api.existenz.ch unreachable — skipping weather/hydro live tests');
+
+describe.skipIf(!reachable)('Weather API (live)', () => {
   it('get_weather returns flattened data for BER station', async () => {
     const result = JSON.parse(await handleWeather('get_weather', { station: 'BER' }));
     expect(result.station).toBe('BER');
