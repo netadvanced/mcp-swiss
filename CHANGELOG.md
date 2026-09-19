@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `mcp-swiss` are documented here.
+All notable changes to `mcp-swiss-ng` (and, before the fork, `mcp-swiss`) are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
@@ -9,7 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss), rebased on upstream `develop` (v0.8.0: pollen module, snow fixes, dependency updates through 2026-09-14).
+
 ### Added
+
+**Streamable HTTP transport** (upstream #64) — `--http` / `MCP_TRANSPORT=http`
+- `POST/GET/DELETE /mcp` with per-session servers, `GET /health`, 30-min idle session expiry
+- Optional bearer auth (`MCP_AUTH_TOKEN`), Host allow-list / DNS-rebinding protection (`MCP_ALLOWED_HOSTS`, on by default for loopback binds), CORS (`MCP_CORS_ORIGIN`)
+- `docker-compose.example.yml`; container exposes port 3000, runs as non-root
+
+**Discovery mode** (upstream #106) — `--discovery` / `MCP_SWISS_DISCOVERY=1`
+- Starts with `swiss_discover` (module catalog / load modules, emits `tools/list_changed`) and `swiss_call` (fallback for clients that don't refresh tool lists)
+
+**Tool annotations** — every tool is marked `readOnlyHint`, `idempotentHint`, `openWorldHint`, not destructive
 
 **GWR module** (3 tools) — Federal Register of Buildings and Dwellings (BFS), via [api3.geo.admin.ch](https://api3.geo.admin.ch) layer `ch.bfs.gebaeude_wohnungs_register` (closes #142)
 - `search_buildings` — find buildings by address → EGID, address, coordinates, category, class, construction year, floors, dwellings
@@ -17,6 +29,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `buildings_near` — buildings around a WGS84 point within a small radius, closest first
 - GWR code lists (GKAT, GKLAS, GSTAT, GBAUP, GENH/GENW, GWAERZH/GWAERZW, WSTAT, WSTWK) decoded to English labels
 - Added to the `business` preset
+
+### Changed
+- Package renamed `mcp-swiss-ng` (bin `mcp-swiss-ng`); not on npm yet — install with `npx -y github:netadvanced/mcp-swiss-ng` or `ghcr.io/netadvanced/mcp-swiss-ng`
+- Node.js 22+ required (Node 20 is EOL); CI on 22/24, Docker `node:24-alpine`
+- All outbound requests share one client: `mcp-swiss-ng/<version>` User-Agent and a 15 s timeout (`MCP_SWISS_TIMEOUT_MS`); several modules previously had no timeout
+- Server reports the real package version (was hard-coded `0.5.8`)
+- `outdoor` preset includes `pollen`; `--list-modules` shows module descriptions
+- `src/index.ts` split into `registry`, `config`, `server`, `http-server`; importing modules no longer starts a server
+- vitest 5, eslint 10.11, GitHub Actions v7; TypeScript stays on 6.x until typescript-eslint supports 7
+
+### Fixed
+- Build broken on upstream `develop` since the TypeScript 6 bump (`types: ["node"]` missing from tsconfig)
+- `get_snow_measurements` for study plots returns an empty result with an explanation off-season instead of an HTTP 404 error
+- `energy` tools defaulted to tariff year 2026 forever; now the current year
+- Pollen integration test assumed 16 stations (MeteoSwiss now runs 15)
+- 9 npm audit findings (0 remaining)
 
 ---
 
