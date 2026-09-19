@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
 
 const SERVER_PATH = resolve(__dirname, '../../dist/index.js');
+const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8')) as { version: string };
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -120,7 +122,7 @@ describe('MCP protocol: tools/list', () => {
     expect(Array.isArray(result.tools)).toBe(true);
   });
 
-  it('returns exactly 76 tools', async () => {
+  it('returns exactly 79 tools', async () => {
     const response = await sendMcpRequest({
       jsonrpc: '2.0',
       id: 3,
@@ -129,6 +131,33 @@ describe('MCP protocol: tools/list', () => {
 
     const result = response.result as { tools: Tool[] };
     expect(result.tools).toHaveLength(79);
+  });
+
+  it('marks every tool as read-only via annotations', async () => {
+    const response = await sendMcpRequest({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/list',
+    });
+
+    const result = response.result as { tools: Tool[] };
+    for (const tool of result.tools) {
+      expect(tool.annotations?.readOnlyHint).toBe(true);
+      expect(tool.annotations?.destructiveHint).toBe(false);
+      expect(tool.annotations?.openWorldHint).toBe(true);
+    }
+  });
+
+  it('reports the package.json version in serverInfo', async () => {
+    const response = await sendMcpRequest({
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } },
+    });
+
+    const result = response.result as { serverInfo: { version: string } };
+    expect(result.serverInfo.version).toBe(pkg.version);
   });
 
   it('each tool has name, description, inputSchema', async () => {

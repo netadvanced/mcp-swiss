@@ -179,7 +179,18 @@ if (config.listPresets) {
 }
 
 const activeModules = resolveModules(config.modules);
-const allTools = activeModules.flatMap((m) => m.tools);
+
+// Every tool is a read-only lookup against a public Swiss open-data API.
+export const TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+
+const allTools = activeModules.flatMap((m) =>
+  m.tools.map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS }))
+);
 
 // Build tool → handler lookup
 const toolHandlerMap = new Map<string, ToolHandler>();
