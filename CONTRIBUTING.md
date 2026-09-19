@@ -1,4 +1,4 @@
-# Contributing to mcp-swiss 🏔️
+# Contributing to mcp-swiss-ng 🏔️
 
 Thanks for helping make Swiss open data better for AI assistants!
 
@@ -20,8 +20,8 @@ Thanks for helping make Swiss open data better for AI assistants!
 
 ```bash
 # Clone the repo
-git clone https://github.com/vikramgorla/mcp-swiss.git
-cd mcp-swiss
+git clone https://github.com/netadvanced/mcp-swiss-ng.git
+cd mcp-swiss-ng
 
 # Install dependencies
 npm install
@@ -152,7 +152,7 @@ Follow this sequence **exactly**. Do not skip steps or combine them.
 ### Step 1 — Create a feature branch from develop
 
 ```bash
-cd ~/mcp-swiss
+cd ~/mcp-swiss-ng
 git checkout develop
 git pull origin develop
 git checkout -b feature/<module-name>

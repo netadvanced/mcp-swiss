@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.vikramgorla/mcp-swiss",
+  "name": "io.github.netadvanced/mcp-swiss-ng",
   "description": "Swiss open data for AI — trains, weather, rivers, maps, and companies. Zero API keys.",
   "repository": {
-    "url": "https://github.com/vikramgorla/mcp-swiss.git",
+    "url": "https://github.com/netadvanced/mcp-swiss-ng.git",
     "source": "github"
   },
   "version": "0.1.4",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/vikramgorla/mcp-swiss/main/assets/icon.svg",
+      "src": "https://raw.githubusercontent.com/netadvanced/mcp-swiss-ng/main/assets/icon.svg",
       "mimeType": "image/svg+xml"
     },
     {
-      "src": "https://raw.githubusercontent.com/vikramgorla/mcp-swiss/main/assets/icon.png",
+      "src": "https://raw.githubusercontent.com/netadvanced/mcp-swiss-ng/main/assets/icon.png",
       "mimeType": "image/png",
       "sizes": ["256x256"]
     }
@@ -21,7 +21,7 @@
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "mcp-swiss",
+      "identifier": "mcp-swiss-ng",
       "version": "0.1.4",
       "runtimeHint": "npx",
       "transport": {

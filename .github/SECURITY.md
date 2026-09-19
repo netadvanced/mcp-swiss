@@ -11,7 +11,7 @@
 
 ### What IS a security issue
 
-- **Dependency vulnerabilities** — a transitive dependency with a known CVE that could affect mcp-swiss users
+- **Dependency vulnerabilities** — a transitive dependency with a known CVE that could affect mcp-swiss-ng users
 - **Parameter injection** — crafted tool arguments that cause unintended behaviour (e.g. SSRF via URL manipulation in tool parameters)
 - **Data leakage** — tool responses that inadvertently expose information beyond what the upstream API returns
 - **Prototype pollution** — in JSON parsing or argument handling
@@ -25,11 +25,11 @@
 
 ## Reporting a vulnerability
 
-**Open a GitHub issue:** https://github.com/vikramgorla/mcp-swiss/issues/new
+**Open a GitHub issue:** https://github.com/netadvanced/mcp-swiss-ng/issues/new
 
-Since mcp-swiss handles no credentials, tokens, or personal data (all upstream APIs are public Swiss open data), public issue reporting is fine. If you believe the issue is sensitive, use GitHub's private vulnerability reporting:
+Since mcp-swiss-ng handles no credentials, tokens, or personal data (all upstream APIs are public Swiss open data), public issue reporting is fine. If you believe the issue is sensitive, use GitHub's private vulnerability reporting:
 
-- [Security → Report a vulnerability](https://github.com/vikramgorla/mcp-swiss/security/advisories/new)
+- [Security → Report a vulnerability](https://github.com/netadvanced/mcp-swiss-ng/security/advisories/new)
 
 Please include:
 - Description of the vulnerability
@@ -49,4 +49,4 @@ We don't guarantee specific response timelines, but we take security seriously a
 
 ## Notes
 
-mcp-swiss handles **no credentials, tokens, or personal data**. All upstream APIs are public Swiss open data. The tool runs locally via stdio — it does not expose any network port or server.
+mcp-swiss-ng handles **no credentials, tokens, or personal data**. All upstream APIs are public Swiss open data. The tool runs locally via stdio — it does not expose any network port or server.

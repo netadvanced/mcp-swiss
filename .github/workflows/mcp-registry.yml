@@ -18,6 +18,8 @@ jobs:
   publish:
     name: Publish to MCP Registry
     runs-on: ubuntu-latest
+    # Registry entries point at the npm package — only when PUBLISH_NPM=true
+    if: vars.PUBLISH_NPM == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7

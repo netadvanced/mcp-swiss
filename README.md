@@ -1,20 +1,15 @@
 <div align="center">
 
-<img src="assets/icon.svg" width="120" height="120" alt="mcp-swiss" />
+<img src="assets/icon.svg" width="120" height="120" alt="mcp-swiss-ng" />
 
-# mcp-swiss
+# mcp-swiss-ng
 
 **Swiss open data for AI — zero config, zero API keys**
 
-[![npm](https://img.shields.io/npm/v/mcp-swiss.svg?style=flat-square)](https://www.npmjs.com/package/mcp-swiss)
-[![CI](https://img.shields.io/github/actions/workflow/status/vikramgorla/mcp-swiss/ci.yml?style=flat-square&label=CI)](https://github.com/vikramgorla/mcp-swiss/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://opensource.org/licenses/MIT)
-[![MCP](https://img.shields.io/badge/MCP-compatible-D52B1E?style=flat-square)](https://modelcontextprotocol.io)
-[![Downloads](https://img.shields.io/npm/dm/mcp-swiss.svg?style=flat-square)](https://www.npmjs.com/package/mcp-swiss)
-[![Stars](https://img.shields.io/github/stars/vikramgorla/mcp-swiss?style=flat-square)](https://github.com/vikramgorla/mcp-swiss)
-[![Node](https://img.shields.io/node/v/mcp-swiss?style=flat-square)](https://nodejs.org)
-[![.mcpb](https://img.shields.io/badge/.mcpb-One--Click_Install-D52B1E?style=flat-square)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
-[![Claude Desktop](https://img.shields.io/badge/Claude_Desktop-Install-D52B1E?style=flat-square&logo=anthropic&logoColor=white)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[![CI](https://img.shields.io/github/actions/workflow/status/netadvanced/mcp-swiss-ng/ci.yml?style=flat-square&label=CI)](https://github.com/netadvanced/mcp-swiss-ng/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-stdio_%7C_HTTP-D52B1E?style=flat-square)](https://modelcontextprotocol.io)
+[![Node](https://img.shields.io/badge/node-22%2B-brightgreen?style=flat-square)](package.json)
 
 [Install](#installation) · [Tools](#tools) · [Demo](#demo-prompts) · [Data Sources](#data-sources)
 
@@ -22,9 +17,11 @@
 
 ---
 
-`mcp-swiss` is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives any AI assistant direct access to Swiss open data — trains, weather, rivers, maps, and companies.
+`mcp-swiss-ng` is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives any AI assistant direct access to Swiss open data — trains, weather, rivers, maps, and companies.
 
-**82 tools. No API keys. No registration. No server to run. Just `npx mcp-swiss`.**
+**82 tools. No API keys. No registration. Runs locally over stdio or as a shared Streamable HTTP server.**
+
+> **About this fork.** `mcp-swiss-ng` continues [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss) (MIT). On top of upstream v0.8.0 it adds a Streamable HTTP transport, discovery mode, the GWR building-register module, read-only tool annotations, request timeouts, trimmed tool schemas and current dependencies (Node 22+). It is not published to npm yet: install from GitHub or use the container image.
 
 ```
 🚆 Transport    — SBB, PostBus, trams, live departures, journey planning
@@ -49,7 +46,7 @@
 🚗 Traffic      — ASTRA counting stations, daily volumes
 🌍 Earthquakes  — Swiss Seismological Service (SED/ETH Zürich), FDSN API
 ❄️ Snow         — SLF snow depth, stations, and measurements
-🌿 Pollen       — MeteoSwiss pollen concentrations at 16 stations
+🌿 Pollen       — MeteoSwiss pollen concentrations (~15 stations)
 🏘️ Buildings    — Federal register of buildings & dwellings (GWR/RegBL, BFS)
 ```
 
@@ -60,20 +57,20 @@
 ### Quick Start
 
 ```bash
-npx mcp-swiss
+npx -y github:netadvanced/mcp-swiss-ng
 ```
 
-That's it. No API keys, no `.env` files, no accounts. Pick your client below and paste the config.
+That's it. No API keys, no `.env` files, no accounts. The first run clones and builds the package (a few seconds); later runs use the npx cache. Pick your client below and paste the config.
 
 ---
 
 ### One-Click Install (.mcpb)
 
-`.mcpb` bundles work with Claude Desktop and any MCP Bundle-compatible app.
+`.mcpb` bundles work with Claude Desktop and any MCP Bundle-compatible app. They are attached to each GitHub release of this fork.
 
-[**⬇ Download mcp-swiss.mcpb**](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[**⬇ Download mcp-swiss.mcpb**](https://github.com/netadvanced/mcp-swiss-ng/releases/latest/download/mcp-swiss.mcpb)
 
-[![Install in Claude Desktop](https://img.shields.io/badge/Install_in_Claude_Desktop-D52B1E?style=for-the-badge&logo=anthropic&logoColor=white)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[![Install in Claude Desktop](https://img.shields.io/badge/Install_in_Claude_Desktop-D52B1E?style=for-the-badge&logo=anthropic&logoColor=white)](https://github.com/netadvanced/mcp-swiss-ng/releases/latest/download/mcp-swiss.mcpb)
 
 Open the downloaded file — your app handles the rest. No config editing, no terminal, no API keys.
 
@@ -91,7 +88,7 @@ Edit your config file:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -104,7 +101,7 @@ Restart Claude Desktop after saving.
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add swiss -- npx -y mcp-swiss
+claude mcp add swiss -- npx -y github:netadvanced/mcp-swiss-ng
 ```
 
 That's it — Claude Code will use it in your next session.
@@ -122,7 +119,7 @@ That's it — Claude Code will use it in your next session.
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -135,7 +132,7 @@ That's it — Claude Code will use it in your next session.
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -160,10 +157,10 @@ That's it — Claude Code will use it in your next session.
 
 ```bash
 # VS Code
-code --add-mcp '{"name":"swiss","command":"npx","args":["-y","mcp-swiss"]}'
+code --add-mcp '{"name":"swiss","command":"npx","args":["-y", "github:netadvanced/mcp-swiss-ng"]}'
 
 # VS Code Insiders
-code-insiders --add-mcp '{"name":"swiss","command":"npx","args":["-y","mcp-swiss"]}'
+code-insiders --add-mcp '{"name":"swiss","command":"npx","args":["-y", "github:netadvanced/mcp-swiss-ng"]}'
 ```
 
 #### Manual Config
@@ -176,7 +173,7 @@ Add to your VS Code User Settings (JSON) — press `Ctrl+Shift+P` → `Preferenc
     "servers": {
       "swiss": {
         "command": "npx",
-        "args": ["-y", "mcp-swiss"]
+        "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
       }
     }
   }
@@ -190,7 +187,7 @@ Or add to `.vscode/mcp.json` in your workspace (shareable with your team):
   "servers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -207,7 +204,7 @@ Add to `~/.codeium/windsurf/model_config.json`:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -224,7 +221,7 @@ Open VS Code `settings.json` and add:
   "cline.mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -234,12 +231,12 @@ Open VS Code `settings.json` and add:
 
 ### Any MCP Client
 
-`mcp-swiss` uses **stdio transport** and requires no environment variables. The universal config:
+By default `mcp-swiss-ng` uses **stdio transport** and needs no environment variables. The universal config:
 
 ```json
 {
   "command": "npx",
-  "args": ["-y", "mcp-swiss"]
+  "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
 }
 ```
 
@@ -248,16 +245,14 @@ This works with any MCP-compatible client — just plug it in.
 ### Docker
 
 ```bash
-docker pull vikramgorla/mcp-swiss
+docker pull ghcr.io/netadvanced/mcp-swiss-ng
 ```
 
-Use with any MCP client that supports Docker-based servers. The container uses stdio transport:
+The container speaks stdio by default:
 
 ```bash
 # Run directly (stdio)
-docker run -i vikramgorla/mcp-swiss
-
-# Use with Claude Desktop
+docker run -i --rm ghcr.io/netadvanced/mcp-swiss-ng
 ```
 
 For Claude Desktop, update your config to use Docker:
@@ -267,23 +262,19 @@ For Claude Desktop, update your config to use Docker:
   "mcpServers": {
     "swiss": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "vikramgorla/mcp-swiss"]
+      "args": ["run", "-i", "--rm", "ghcr.io/netadvanced/mcp-swiss-ng"]
     }
   }
 }
 ```
 
-Also available on GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/vikramgorla/mcp-swiss
-```
+To run it as a shared HTTP server instead, see [Remote access (Streamable HTTP)](#remote-access-streamable-http).
 
 ---
 
 ## Module Filtering
 
-By default, mcp-swiss loads all 23 modules (82 tools). For better token efficiency, load only the modules you need:
+By default, mcp-swiss-ng loads all 23 modules (82 tools). For better token efficiency, load only the modules you need:
 
 ### Select specific modules
 ```json
@@ -291,7 +282,7 @@ By default, mcp-swiss loads all 23 modules (82 tools). For better token efficien
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss", "--modules", "transport,weather"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--modules", "transport,weather"]
     }
   }
 }
@@ -303,7 +294,7 @@ By default, mcp-swiss loads all 23 modules (82 tools). For better token efficien
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss", "--preset", "commuter"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--preset", "commuter"]
     }
   }
 }
@@ -320,7 +311,57 @@ By default, mcp-swiss loads all 23 modules (82 tools). For better token efficien
 
 Combine preset + modules: `--preset commuter --modules parliament`
 
-List available: `npx mcp-swiss --list-modules` or `npx mcp-swiss --list-presets`
+List available: `npx -y github:netadvanced/mcp-swiss-ng --list-modules` or `npx -y github:netadvanced/mcp-swiss-ng --list-presets`
+
+---
+
+## Remote access (Streamable HTTP)
+
+Run one shared server and point clients at a URL — needed for claude.ai (web), ChatGPT connectors and any remote MCP client.
+
+```bash
+npx -y github:netadvanced/mcp-swiss-ng --http --port 3000             # listens on 127.0.0.1
+docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
+  -e MCP_AUTH_TOKEN=change-me ghcr.io/netadvanced/mcp-swiss-ng     # container
+```
+
+- MCP endpoint: `http://<host>:3000/mcp` (Streamable HTTP, sessions via `Mcp-Session-Id`)
+- Health check: `GET /health` → `{"status":"ok","version":"…","sessions":N}`
+- A ready-made [`docker-compose.example.yml`](docker-compose.example.yml) includes a healthcheck.
+
+| Setting | Flag | Env | Default |
+|---|---|---|---|
+| Transport | `--http` | `MCP_TRANSPORT=http` | stdio |
+| Port | `--port` | `PORT` | `3000` |
+| Bind address | `--host` | `HOST` | `127.0.0.1` |
+| Bearer token for `/mcp` | — | `MCP_AUTH_TOKEN` | none |
+| Allowed `Host` headers (DNS-rebinding protection) | — | `MCP_ALLOWED_HOSTS` (comma list) | loopback only when bound to loopback |
+| CORS origin for browser clients | — | `MCP_CORS_ORIGIN` | none |
+| Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `15000` |
+
+Each session gets its own server instance; idle sessions are dropped after 30 minutes. All data is public, but **set `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` whenever the port is reachable from outside**, or anyone can spend your outbound quota on the upstream APIs.
+
+Client config for a remote server (Claude Code shown):
+
+```bash
+claude mcp add --transport http swiss https://mcp-swiss.example.ch/mcp \
+  --header "Authorization: Bearer change-me"
+```
+
+---
+
+## Discovery mode
+
+Loading all 82 tool schemas costs several thousand tokens per conversation. With `--discovery` (or `MCP_SWISS_DISCOVERY=1`) the server starts with just two small meta-tools:
+
+- `swiss_discover` — no arguments: lists modules with descriptions and tool names. With `{"modules": ["transport", "weather"]}`: loads those modules, returns their schemas and sends `notifications/tools/list_changed`, so clients that support it refresh their tool list.
+- `swiss_call` — `{"tool": "get_connections", "arguments": {…}}` runs any loaded tool. This is the fallback for clients that don't re-read their tool list.
+
+`--discovery` combines with `--preset`/`--modules`, which then decide what is loaded up front.
+
+```json
+{ "command": "npx", "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--discovery"] }
+```
 
 ---
 
@@ -588,8 +629,8 @@ All official Swiss open data — no API keys required:
 
 ```bash
 # Clone
-git clone https://github.com/vikramgorla/mcp-swiss.git
-cd mcp-swiss
+git clone https://github.com/netadvanced/mcp-swiss-ng.git
+cd mcp-swiss-ng
 
 # Install deps
 npm install
@@ -614,7 +655,7 @@ npm test
 
 ## Contributing
 
-We welcome contributions! mcp-swiss follows a strict PR-based workflow to keep the codebase clean and CI always green.
+We welcome contributions! mcp-swiss-ng follows a strict PR-based workflow to keep the codebase clean and CI always green.
 
 ### Quick links
 
@@ -642,4 +683,4 @@ We welcome contributions! mcp-swiss follows a strict PR-based workflow to keep t
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE). Originally created by [Vikram Gorla](https://github.com/vikramgorla/mcp-swiss); this fork is maintained by [Pierre Christen](https://github.com/netadvanced).

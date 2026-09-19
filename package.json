@@ -1,15 +1,17 @@
 {
-  "name": "mcp-swiss",
+  "name": "mcp-swiss-ng",
+  "private": true,
   "version": "0.8.0",
-  "description": "Swiss open data MCP server — 68 tools across 20 modules. Zero API keys.",
+  "description": "Swiss open data MCP server — 82 tools across 23 modules, stdio or HTTP. Zero API keys.",
   "main": "dist/index.js",
   "bin": {
-    "mcp-swiss": "dist/index.js"
+    "mcp-swiss-ng": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "test": "vitest run tests/unit tests/mcp",
     "test:watch": "vitest",
@@ -54,16 +56,19 @@
     "traffic",
     "earthquakes"
   ],
-  "author": "Vikram Gorla",
+  "author": "Pierre Christen",
+  "contributors": [
+    "Vikram Gorla (original mcp-swiss, https://github.com/vikramgorla/mcp-swiss)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vikramgorla/mcp-swiss.git"
+    "url": "https://github.com/netadvanced/mcp-swiss-ng.git"
   },
   "bugs": {
-    "url": "https://github.com/vikramgorla/mcp-swiss/issues"
+    "url": "https://github.com/netadvanced/mcp-swiss-ng/issues"
   },
-  "homepage": "https://github.com/vikramgorla/mcp-swiss#readme",
+  "homepage": "https://github.com/netadvanced/mcp-swiss-ng#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
@@ -80,5 +85,5 @@
     "node": ">=22.0.0"
   },
   "icon": "assets/icon.svg",
-  "mcpName": "io.github.vikramgorla/swiss"
+  "mcpName": "io.github.netadvanced/mcp-swiss-ng"
 }

@@ -61,7 +61,7 @@ jobs:
             try {
               await github.rest.repos.createRelease({
                 owner: context.repo.owner, repo: context.repo.repo,
-                tag_name: tag, name: `mcp-swiss ${tag}`,
+                tag_name: tag, name: `mcp-swiss-ng ${tag}`,
                 generate_release_notes: true, draft: false, prerelease: false,
               });
             } catch (e) {
@@ -72,11 +72,13 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
 
       - name: Publish to npm
+        # Fork is not published to npm yet — set repo variable PUBLISH_NPM=true to enable
+        if: vars.PUBLISH_NPM == 'true'
         run: |
           VERSION=$(node -p "require('./package.json').version")
           # Check if this version is already published
-          if npm view "mcp-swiss@${VERSION}" version 2>/dev/null; then
-            echo "⚠️ mcp-swiss@${VERSION} already published, skipping"
+          if npm view "mcp-swiss-ng@${VERSION}" version 2>/dev/null; then
+            echo "⚠️ mcp-swiss-ng@${VERSION} already published, skipping"
           else
             npm publish --access public
           fi
@@ -161,15 +163,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/vikramgorla/mcp-swiss:${{ needs.release.outputs.version }}
-            ghcr.io/vikramgorla/mcp-swiss:${{ steps.tags.outputs.minor }}
-            ghcr.io/vikramgorla/mcp-swiss:latest
+            ghcr.io/netadvanced/mcp-swiss-ng:${{ needs.release.outputs.version }}
+            ghcr.io/netadvanced/mcp-swiss-ng:${{ steps.tags.outputs.minor }}
+            ghcr.io/netadvanced/mcp-swiss-ng:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: |
-            org.opencontainers.image.title=mcp-swiss
+            org.opencontainers.image.title=mcp-swiss-ng
             org.opencontainers.image.description=Swiss open data MCP server — zero API keys
-            org.opencontainers.image.source=https://github.com/vikramgorla/mcp-swiss
+            org.opencontainers.image.source=https://github.com/netadvanced/mcp-swiss-ng
             org.opencontainers.image.licenses=MIT
 
 

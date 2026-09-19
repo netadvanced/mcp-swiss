@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a broken or incorrect tool in mcp-swiss
+description: Report a broken or incorrect tool in mcp-swiss-ng
 title: "[Bug] "
 labels: ["bug", "needs-triage"]
 body:
@@ -68,7 +68,7 @@ body:
       label: Steps to reproduce
       description: How to trigger the bug. Include the MCP tool call.
       placeholder: |
-        1. Configure mcp-swiss in Claude Desktop
+        1. Configure mcp-swiss-ng in Claude Desktop
         2. Ask: "What is the current water temperature of the Aare in Bern?"
         3. The tool calls get_water_level with station: "2135"
         4. Response: { payload: [] }
@@ -95,8 +95,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: mcp-swiss version
-      placeholder: "e.g. 0.1.0 — run: npx mcp-swiss --version"
+      label: mcp-swiss-ng version
+      placeholder: "e.g. 0.1.0 — run: npx -y github:netadvanced/mcp-swiss-ng --version"
     validations:
       required: true
 

@@ -8,7 +8,7 @@ on:
         required: true
 
 env:
-  GHCR_IMAGE: ghcr.io/vikramgorla/mcp-swiss
+  GHCR_IMAGE: ghcr.io/netadvanced/mcp-swiss-ng
 
 jobs:
   docker:
@@ -60,8 +60,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: |
-            org.opencontainers.image.title=mcp-swiss
+            org.opencontainers.image.title=mcp-swiss-ng
             org.opencontainers.image.description=Swiss open data MCP server — zero API keys
-            org.opencontainers.image.source=https://github.com/vikramgorla/mcp-swiss
+            org.opencontainers.image.source=https://github.com/netadvanced/mcp-swiss-ng
             org.opencontainers.image.licenses=MIT
 

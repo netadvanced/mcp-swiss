@@ -1,4 +1,4 @@
-# Releasing mcp-swiss 🏔️
+# Releasing mcp-swiss-ng 🏔️
 
 This document describes the complete release process for maintainers.
 
@@ -22,7 +22,7 @@ Follow these steps in order. Do not skip steps.
 ### Step 1 — Verify develop is clean and ready
 
 ```bash
-cd ~/mcp-swiss
+cd ~/mcp-swiss-ng
 git checkout develop
 git pull origin develop
 
@@ -205,10 +205,10 @@ After merging to main and waiting ~5 minutes for CI/workflows:
 ### npm
 
 ```bash
-npm view mcp-swiss version
+npm view mcp-swiss-ng version
 # Should show X.Y.Z (not X.Y.Z-dev)
 
-npm view mcp-swiss dist-tags
+npm view mcp-swiss-ng dist-tags
 # Should show: latest: X.Y.Z
 ```
 
@@ -224,7 +224,7 @@ gh release view vX.Y.Z
 
 ### MCP Registry
 
-Visit [https://registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io) and search for `mcp-swiss`. The version should match.
+Visit [https://registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io) and search for `mcp-swiss-ng`. The version should match.
 
 ⚠️ MCP Registry has CDN caching — it may show the old version for up to 30 minutes after publish.
 
@@ -257,13 +257,13 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js | hea
 
 ### npm "version already published"
 
-**Symptom:** `release.yml` fails with `npm ERR! 403 You cannot publish over the previously published versions of mcp-swiss`
+**Symptom:** `release.yml` fails with `npm ERR! 403 You cannot publish over the previously published versions of mcp-swiss-ng`
 
 **Cause:** The workflow re-triggered (push to main happened twice), or the version was already published.
 
 **Fix:** This is expected and has a guard in the workflow. Check if npm already has the version:
 ```bash
-npm view mcp-swiss version
+npm view mcp-swiss-ng version
 ```
 If it matches, npm publish succeeded on the first run. The GitHub Release may still need to be created manually:
 ```bash
@@ -370,12 +370,12 @@ This is the gate for all PRs. A PR cannot be merged until `ci.yml` passes.
 
 **Steps:**
 1. Publishes the current develop version to npm with the `beta` dist-tag
-2. Example: `0.4.1-dev` publishes as `mcp-swiss@0.4.1-dev` under the `beta` tag
+2. Example: `0.4.1-dev` publishes as `mcp-swiss-ng@0.4.1-dev` under the `beta` tag
 
 **Usage:**
 ```bash
-npx mcp-swiss@beta   # use the latest beta
-npm view mcp-swiss dist-tags  # see all tags
+npx -y github:netadvanced/mcp-swiss-ng@beta   # use the latest beta
+npm view mcp-swiss-ng dist-tags  # see all tags
 ```
 
 This allows testing the latest develop version without affecting the `latest` tag.
@@ -410,4 +410,4 @@ If you are an AI agent executing this release workflow:
 4. **Use `--merge` only** when calling `gh pr merge`.
 5. **Wait for `release.yml` to complete** before declaring the release done.
 6. **Notify the main session** at each stage: version bump commit, PRs created, CI status, npm published.
-7. **Check `npm view mcp-swiss version`** as final confirmation.
+7. **Check `npm view mcp-swiss-ng version`** as final confirmation.

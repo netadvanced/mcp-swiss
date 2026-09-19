@@ -97,7 +97,7 @@ function isValidCHEUid(uid) {
 // ============================================================
 
 async function runAllTests() {
-  console.error('\n🏔️  mcp-swiss Comprehensive Test Suite\n' + '='.repeat(50));
+  console.error('\n🏔️  mcp-swiss-ng Comprehensive Test Suite\n' + '='.repeat(50));
   
   // --------------------------------------------------------
   // 1. MCP PROTOCOL COMPLIANCE

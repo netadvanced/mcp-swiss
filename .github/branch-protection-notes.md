@@ -17,7 +17,7 @@
 - Do not allow force pushes: YES
 
 ## Apply with gh CLI:
-# gh api repos/vikramgorla/mcp-swiss/branches/main/protection \
+# gh api repos/netadvanced/mcp-swiss-ng/branches/main/protection \
 #   --method PUT \
 #   --field required_status_checks='{"strict":true,"contexts":["lint-build","test","security"]}' \
 #   --field enforce_admins=false \
