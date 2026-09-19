@@ -28,6 +28,7 @@ import { trafficTools, handleTraffic } from "./modules/traffic.js";
 import { earthquakeTools, handleEarthquakes } from "./modules/earthquakes.js";
 import { snowTools, handleSnow } from "./modules/snow.js";
 import { pollenTools, handlePollen } from "./modules/pollen.js";
+import { gwrTools, handleGwr } from "./modules/gwr.js";
 import { VERSION } from "./utils/http.js";
 
 // ── Module Registry ──────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
   earthquakes: { tools: earthquakeTools,  handler: handleEarthquakes as ToolHandler },
   snow:        { tools: snowTools,        handler: handleSnow },
   pollen:      { tools: pollenTools,      handler: handlePollen },
+  gwr:         { tools: gwrTools,         handler: handleGwr },
 };
 
 // ── Presets ───────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
 export const presets: Record<string, string[]> = {
   commuter:  ["transport", "weather", "holidays"],
   outdoor:   ["weather", "avalanche", "hiking", "earthquakes", "dams", "snow", "pollen"],
-  business:  ["companies", "geodata", "post", "energy", "statistics", "snb"],
+  business:  ["companies", "geodata", "post", "energy", "statistics", "snb", "gwr"],
   citizen:   ["parliament", "voting", "holidays", "news"],
   minimal:   ["transport"],
   full:      Object.keys(moduleRegistry),

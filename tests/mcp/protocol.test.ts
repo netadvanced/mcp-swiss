@@ -122,7 +122,7 @@ describe('MCP protocol: tools/list', () => {
     expect(Array.isArray(result.tools)).toBe(true);
   });
 
-  it('returns exactly 79 tools', async () => {
+  it('returns exactly 82 tools', async () => {
     const response = await sendMcpRequest({
       jsonrpc: '2.0',
       id: 3,
@@ -130,7 +130,7 @@ describe('MCP protocol: tools/list', () => {
     });
 
     const result = response.result as { tools: Tool[] };
-    expect(result.tools).toHaveLength(79);
+    expect(result.tools).toHaveLength(82);
   });
 
   it('marks every tool as read-only via annotations', async () => {

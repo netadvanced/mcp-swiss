@@ -24,7 +24,7 @@
 
 `mcp-swiss` is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives any AI assistant direct access to Swiss open data — trains, weather, rivers, maps, and companies.
 
-**79 tools. No API keys. No registration. No server to run. Just `npx mcp-swiss`.**
+**82 tools. No API keys. No registration. No server to run. Just `npx mcp-swiss`.**
 
 ```
 🚆 Transport    — SBB, PostBus, trams, live departures, journey planning
@@ -50,6 +50,7 @@
 🌍 Earthquakes  — Swiss Seismological Service (SED/ETH Zürich), FDSN API
 ❄️ Snow         — SLF snow depth, stations, and measurements
 🌿 Pollen       — MeteoSwiss pollen concentrations at 16 stations
+🏘️ Buildings    — Federal register of buildings & dwellings (GWR/RegBL, BFS)
 ```
 
 ---
@@ -282,7 +283,7 @@ docker pull ghcr.io/vikramgorla/mcp-swiss
 
 ## Module Filtering
 
-By default, mcp-swiss loads all 22 modules (79 tools). For better token efficiency, load only the modules you need:
+By default, mcp-swiss loads all 23 modules (82 tools). For better token efficiency, load only the modules you need:
 
 ### Select specific modules
 ```json
@@ -310,12 +311,12 @@ By default, mcp-swiss loads all 22 modules (79 tools). For better token efficien
 
 | Preset | Modules | Tools | Token Savings |
 |--------|---------|-------|---------------|
-| `commuter` | transport, weather, holidays | 14 | 81% |
-| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow, pollen | 22 | 72% |
-| `business` | companies, geodata, post, energy, statistics, snb | 24 | 67% |
-| `citizen` | parliament, voting, holidays, news | 17 | 77% |
-| `minimal` | transport | 5 | 93% |
-| `full` | all 22 modules (default) | 79 | — |
+| `commuter` | transport, weather, holidays | 14 | 83% |
+| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow, pollen | 22 | 73% |
+| `business` | companies, geodata, post, energy, statistics, snb, gwr | 27 | 67% |
+| `citizen` | parliament, voting, holidays, news | 17 | 79% |
+| `minimal` | transport | 5 | 94% |
+| `full` | all 23 modules (default) | 82 | — |
 
 Combine preset + modules: `--preset commuter --modules parliament`
 
@@ -344,12 +345,13 @@ Once connected, try asking your AI:
 | *"Track my Swiss Post parcel 99.12.345678.12345678"* | `track_parcel` |
 | *"How much does electricity cost in Zürich vs Basel?"* | `search_municipality_energy` + `compare_electricity_tariffs` |
 | *"What's the population of canton Zug?"* | `get_population` |
+| *"When was Place de la Palud 2 in Lausanne built and how is it heated?"* | `search_buildings` + `get_building` |
 
 ---
 
 ## Tools
 
-> 79 tools across 22 modules. Full specifications: [`docs/tool-specs.md`](docs/tool-specs.md) · Machine-readable: [`docs/tools.schema.json`](docs/tools.schema.json)
+> 82 tools across 23 modules. Full specifications: [`docs/tool-specs.md`](docs/tool-specs.md) · Machine-readable: [`docs/tools.schema.json`](docs/tools.schema.json)
 
 ### 🚆 Transport (5 tools)
 
@@ -540,6 +542,14 @@ Once connected, try asking your AI:
 | `get_pollen_daily` | Daily pollen averages for trend analysis over configurable time range |
 | `list_pollen_stations` | All 16 MeteoSwiss automatic pollen monitoring stations with location details |
 
+### 🏘️ Buildings / GWR (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `search_buildings` | Find buildings in the Federal Register of Buildings and Dwellings (GWR) by address — EGID, coordinates, category, class, construction year |
+| `get_building` | Full decoded GWR record by EGID: status, construction year/period, floors, areas, heating & hot-water energy, parcel/EGRID, entrances, dwellings (rooms, area, floor) |
+| `buildings_near` | GWR buildings around a WGS84 point within a small radius (≤ 250 m), closest first |
+
 ---
 
 ## Data Sources
@@ -570,6 +580,7 @@ All official Swiss open data — no API keys required:
 | [arclink.ethz.ch](http://arclink.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](http://www.seismo.ethz.ch) |
 | [measurement-api.slf.ch](https://measurement-api.slf.ch/public/api) | SLF snow depth + measurements (IMIS + study plots, CC BY 4.0) | [SLF](https://www.slf.ch) |
 | [data.geo.admin.ch](https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen/) | MeteoSwiss pollen concentrations (16 automatic stations, CC BY) | [MeteoSwiss](https://www.meteoswiss.admin.ch) |
+| [geo.admin.ch](https://api3.geo.admin.ch) — BFS | Federal Register of Buildings and Dwellings (GWR/RegBL), updated weekly | [BFS GWR](https://www.housing-stat.ch) |
 
 ---
 

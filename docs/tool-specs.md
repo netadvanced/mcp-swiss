@@ -1,9 +1,9 @@
 # mcp-swiss Tool Specifications
 
-> Complete human + machine-readable specification for all 79 MCP tools.
+> Complete human + machine-readable specification for all 82 MCP tools.
 > Generated from source
 
-> **Module filtering:** You don't have to load all 79 tools. Use `--modules transport,weather` to pick specific modules, or `--preset commuter` for curated bundles. See [Module Filtering](../README.md#module-filtering) in the README.
+> **Module filtering:** You don't have to load all 82 tools. Use `--modules transport,weather` to pick specific modules, or `--preset commuter` for curated bundles. See [Module Filtering](../README.md#module-filtering) in the README.
 
 ---
 
@@ -31,6 +31,7 @@
 - [Earthquakes / SED Module (3 tools)](#earthquakes)
 - [Snow Conditions / SLF Module (3 tools)](#snow-conditions)
 - [Pollen / MeteoSwiss Module (3 tools)](#pollen)
+- [Buildings / GWR Module (3 tools)](#buildings--gwr)
 
 ---
 
@@ -2554,5 +2555,108 @@ List all 16 MeteoSwiss automatic pollen monitoring stations in Switzerland. Retu
 
 ---
 
+## Buildings / GWR
+
+Federal Register of Buildings and Dwellings (GWR / RegBL) maintained by the Swiss Federal Statistical Office (BFS), served by the geo.admin.ch REST API (layer `ch.bfs.gebaeude_wohnungs_register`, updated weekly, no authentication). GWR code values (category, class, status, construction period, heating/hot-water generator and energy source, dwelling floor/status) are decoded into English labels.
+
+### `search_buildings`
+
+Search the GWR by address. Returns matching buildings with EGID (federal building identifier), address, coordinates, category, class, construction year, floors and dwelling count. Use `get_building` with the EGID for full details.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| address | string | ✅ | Address text: street + number + postcode/locality (e.g. "Place de la Palud 2 Lausanne") |
+| limit | number | ❌ | Maximum number of buildings to return (default: 5, max: 20) |
+
+### Output (example)
+
+```json
+{
+  "query": "Place de la Palud 2 Lausanne",
+  "count": 1,
+  "buildings": [
+    {
+      "egid": 2119257,
+      "address": "Place de la Palud 2, 1003 Lausanne",
+      "name": "Hôtel Seigneux (Hôtel de Ville)",
+      "municipality": "Lausanne",
+      "canton": "VD",
+      "category": "Non-residential",
+      "class": "Office building",
+      "status": "Existing",
+      "construction_year": 1700,
+      "construction_period": "Before 1919",
+      "floors": 5,
+      "dwellings": null,
+      "lat": 46.521793,
+      "lon": 6.632926
+    }
+  ],
+  "source": "Federal Register of Buildings and Dwellings (GWR), BFS — via api3.geo.admin.ch"
+}
+```
+
+---
+
+### `get_building`
+
+Full GWR record of a building by EGID: category, class, status, construction year/month/period, demolition year, floors, footprint area, volume, energy reference area, heating and hot-water systems (heat generator + energy source + last update), parcel number/EGRID, municipality (BFS number), canton, WGS84 + LV95 coordinates, all entrances/addresses and dwellings (EWID, administrative number, floor, rooms, area, kitchen, status).
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| egid | number | ✅ | Federal building identifier EGID (e.g. 2119257) |
+| max_dwellings | number | ❌ | Maximum number of dwellings to list (default: 50, max: 500; 0 = summary only) |
+
+### Output (abridged)
+
+```json
+{
+  "egid": 882657,
+  "address": "Place Marc-Louis-Arlaud 1, 1003 Lausanne",
+  "municipality": "Lausanne",
+  "bfs_municipality_number": 5586,
+  "canton": "VD",
+  "coordinates": { "lat": 46.522588, "lon": 6.631986, "lv95_e": 2538095.949, "lv95_n": 1152675.942 },
+  "category": "Residential with secondary use",
+  "class": "Building with three or more dwellings",
+  "status": "Existing",
+  "construction_year": 1918,
+  "construction_period": "Before 1919",
+  "floors": 4,
+  "footprint_area_m2": 735,
+  "volume_m3": 11552,
+  "heating": [{ "generator": "Boiler (several buildings)", "energy_source": "Gas", "updated": "2001-11-29" }],
+  "hot_water": [{ "generator": "Boiler", "energy_source": "Gas", "updated": "2001-11-29" }],
+  "parcel": { "number": "10193", "egrid": "CH633678577756", "official_building_number": "5420" },
+  "entrances": [{ "edid": 0, "address": "Place Marc-Louis-Arlaud 1, 1003 Lausanne", "lat": 46.522588, "lon": 6.631986 }],
+  "dwellings_summary": { "count": 15, "listed": 15, "total_rooms": 45, "total_area_m2": 1286 },
+  "dwellings": [
+    { "ewid": 1, "admin_number": "101", "floor": "Floor 1", "location": null, "rooms": 3, "area_m2": 79, "kitchen": true, "multi_floor": false, "construction_year": 1999, "status": "Existing" }
+  ],
+  "data_as_of": "2026-09-17"
+}
+```
+
+---
+
+### `buildings_near`
+
+List GWR buildings around a WGS84 point within a small radius, closest first (one entry per building, using its closest entrance). The upstream identify service caps results at ~200 features; in dense areas a `note` is added suggesting a smaller radius.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| lat | number | ✅ | Latitude (WGS84), e.g. 46.5218 |
+| lon | number | ✅ | Longitude (WGS84), e.g. 6.6329 |
+| radius | number | ❌ | Search radius in metres (default: 50, max: 250) |
+| limit | number | ❌ | Maximum number of buildings to return (default: 10, max: 50) |
+
+---
+
 *Specification generated from mcp-swiss source code.*  
-*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), arclink.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen)*
+*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), arclink.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*

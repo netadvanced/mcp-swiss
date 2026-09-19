@@ -9,6 +9,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+**GWR module** (3 tools) — Federal Register of Buildings and Dwellings (BFS), via [api3.geo.admin.ch](https://api3.geo.admin.ch) layer `ch.bfs.gebaeude_wohnungs_register` (closes #142)
+- `search_buildings` — find buildings by address → EGID, address, coordinates, category, class, construction year, floors, dwellings
+- `get_building` — full decoded record by EGID: category/class/status, construction year/period, floors, areas, heating & hot-water systems, parcel/EGRID, entrances and dwellings (EWID, floor, rooms, area)
+- `buildings_near` — buildings around a WGS84 point within a small radius, closest first
+- GWR code lists (GKAT, GKLAS, GSTAT, GBAUP, GENH/GENW, GWAERZH/GWAERZW, WSTAT, WSTWK) decoded to English labels
+- Added to the `business` preset
+
 ---
 
 ## [0.1.0] - 2026-03-07
