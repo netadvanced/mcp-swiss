@@ -91,7 +91,8 @@ describe("Pollen API (live — MeteoSwiss)", () => {
     const result = JSON.parse(
       await handlePollen("list_pollen_stations", {}),
     );
-    expect(result.count).toBeGreaterThanOrEqual(16);
+    // MeteoSwiss runs ~15 stations; the exact count shifts as sites are retired
+    expect(result.count).toBeGreaterThanOrEqual(12);
     expect(result.source).toBe("MeteoSwiss");
     expect(result.network).toContain("MeteoSwiss");
   });

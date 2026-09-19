@@ -1,3 +1,5 @@
+import { httpFetch } from "../utils/http.js";
+
 const BASE_URL = "https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen";
 const SOURCE = "MeteoSwiss";
 
@@ -54,9 +56,7 @@ const DAILY_PARAMS: Record<string, string> = {
 // ── CSV Helpers ───────────────────────────────────────────────────────────────
 
 async function fetchCSV(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: { "User-Agent": "mcp-swiss/0.7.0" },
-  });
+  const response = await httpFetch(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
   }

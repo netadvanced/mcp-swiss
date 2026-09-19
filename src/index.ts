@@ -28,6 +28,7 @@ import { trafficTools, handleTraffic } from "./modules/traffic.js";
 import { earthquakeTools, handleEarthquakes } from "./modules/earthquakes.js";
 import { snowTools, handleSnow } from "./modules/snow.js";
 import { pollenTools, handlePollen } from "./modules/pollen.js";
+import { VERSION } from "./utils/http.js";
 
 // ── Module Registry ──────────────────────────────────────────────────────────
 
@@ -60,14 +61,14 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
   traffic:     { tools: trafficTools,     handler: handleTraffic },
   earthquakes: { tools: earthquakeTools,  handler: handleEarthquakes as ToolHandler },
   snow:        { tools: snowTools,        handler: handleSnow },
-  pollen:      { tools: pollenTools,     handler: handlePollen },
+  pollen:      { tools: pollenTools,      handler: handlePollen },
 };
 
 // ── Presets ───────────────────────────────────────────────────────────────────
 
 export const presets: Record<string, string[]> = {
   commuter:  ["transport", "weather", "holidays"],
-  outdoor:   ["weather", "avalanche", "hiking", "earthquakes", "dams", "snow"],
+  outdoor:   ["weather", "avalanche", "hiking", "earthquakes", "dams", "snow", "pollen"],
   business:  ["companies", "geodata", "post", "energy", "statistics", "snb"],
   citizen:   ["parliament", "voting", "holidays", "news"],
   minimal:   ["transport"],
@@ -189,7 +190,7 @@ for (const mod of activeModules) {
 }
 
 const server = new Server(
-  { name: "mcp-swiss", version: "0.5.8" },
+  { name: "mcp-swiss", version: VERSION },
   { capabilities: { tools: {} } }
 );
 

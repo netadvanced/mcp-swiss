@@ -12,7 +12,7 @@
  *   - search_earthquakes_by_location: earthquakes near given coordinates
  */
 
-import { buildUrl } from "../utils/http.js";
+import { buildUrl, httpFetch } from "../utils/http.js";
 
 const BASE = "http://arclink.ethz.ch/fdsnws/event/1/query";
 
@@ -143,11 +143,8 @@ function startTimeISO(days: number): string {
  * Returns the raw text body.
  */
 async function fetchFdsnText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "mcp-swiss/1.0.0",
-      "Accept": "text/plain",
-    },
+  const response = await httpFetch(url, {
+    headers: { "Accept": "text/plain" },
   });
 
   // 204 No Content = no events found — not an error

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { USER_AGENT } from "../../src/utils/http.js";
 import {
   handleGetVotingResults,
   handleSearchVotes,
@@ -270,7 +271,7 @@ describe("get_voting_results", () => {
     const callArgs = fetchMock.mock.calls[0];
     const options = callArgs[1] as RequestInit;
     const headers = options.headers as Record<string, string>;
-    expect(headers["User-Agent"]).toBe("mcp-swiss/0.3.1");
+    expect(headers["User-Agent"]).toBe(USER_AGENT);
   });
 
   it("handles HTTP error gracefully", async () => {
@@ -507,7 +508,7 @@ describe("search_votes", () => {
     await handleSearchVotes({ query: "AHV" });
     const options = fetchMock.mock.calls[0][1] as RequestInit;
     const headers = options.headers as Record<string, string>;
-    expect(headers["User-Agent"]).toBe("mcp-swiss/0.3.1");
+    expect(headers["User-Agent"]).toBe(USER_AGENT);
   });
 
   it("handles HTTP error", async () => {
@@ -675,7 +676,7 @@ describe("get_vote_details", () => {
     await handleGetVoteDetails({ vote_title: "Nationalstrassen" });
     const options = fetchMock.mock.calls[0][1] as RequestInit;
     const headers = options.headers as Record<string, string>;
-    expect(headers["User-Agent"]).toBe("mcp-swiss/0.3.1");
+    expect(headers["User-Agent"]).toBe(USER_AGENT);
   });
 
   it("handles HTTP error", async () => {

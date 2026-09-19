@@ -3,7 +3,6 @@ import { fetchJSON, buildUrl } from "../utils/http.js";
 // ── Base URLs ─────────────────────────────────────────────────────────────────
 
 const BS_BASE = "https://data.bs.ch/api/v2/catalog/datasets/100345/exports/json";
-const USER_AGENT = "mcp-swiss/0.3.1";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -144,9 +143,7 @@ async function fetchVoteRows(
     order_by: "abst_datum_text desc",
   });
 
-  return fetchJSON<BsVotingRecord[]>(url, {
-    headers: { "User-Agent": USER_AGENT },
-  });
+  return fetchJSON<BsVotingRecord[]>(url);
 }
 
 /**
@@ -306,9 +303,7 @@ export async function handleGetVoteDetails(params: {
     order_by: "abst_datum_text desc,abst_id asc",
   });
 
-  const rows = await fetchJSON<BsVotingRecord[]>(url, {
-    headers: { "User-Agent": USER_AGENT },
-  });
+  const rows = await fetchJSON<BsVotingRecord[]>(url);
 
   if (!rows || rows.length === 0) {
     return JSON.stringify({

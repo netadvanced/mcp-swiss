@@ -2,8 +2,10 @@
 // Data source: https://www.strompreis.elcom.admin.ch (official Swiss electricity price portal)
 // GraphQL API: https://www.strompreis.elcom.admin.ch/api/graphql
 
+import { httpFetch } from "../utils/http.js";
+
 const GRAPHQL_URL = "https://www.strompreis.elcom.admin.ch/api/graphql";
-const CURRENT_YEAR = "2026";
+const CURRENT_YEAR = String(new Date().getFullYear());
 
 // ── Category reference ───────────────────────────────────────────────────────
 // H = Household, C = Commercial
@@ -53,12 +55,11 @@ interface GraphQLResponse<T> {
 // ── GraphQL helper ───────────────────────────────────────────────────────────
 
 async function gql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
-  const response = await fetch(GRAPHQL_URL, {
+  const response = await httpFetch(GRAPHQL_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Accept": "application/json",
-      "User-Agent": "mcp-swiss/1.0.0",
     },
     body: JSON.stringify({ query, variables }),
   });

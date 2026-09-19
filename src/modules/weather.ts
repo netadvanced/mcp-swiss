@@ -1,4 +1,4 @@
-import { fetchJSON, buildUrl } from "../utils/http.js";
+import { fetchJSON, buildUrl, VERSION } from "../utils/http.js";
 
 const BASE = "https://api.existenz.ch/apiv1";
 
@@ -165,7 +165,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
       const url = buildUrl(`${BASE}/smn/latest`, {
         locations: args.station as string,
         app: "mcp-swiss",
-        version: "0.1.0",
+        version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
@@ -200,7 +200,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
         startdt: args.start_date as string,
         enddt: args.end_date as string,
         app: "mcp-swiss",
-        version: "0.1.0",
+        version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
@@ -215,7 +215,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
       const url = buildUrl(`${BASE}/hydro/latest`, {
         locations: args.station as string,
         app: "mcp-swiss",
-        version: "0.1.0",
+        version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
@@ -240,7 +240,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
         startdt: args.start_date as string,
         enddt: args.end_date as string,
         app: "mcp-swiss",
-        version: "0.1.0",
+        version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;

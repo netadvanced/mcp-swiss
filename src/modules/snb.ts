@@ -7,7 +7,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { fetchJSON } from "../utils/http.js";
+import { fetchJSON, httpFetch } from "../utils/http.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -180,11 +180,8 @@ async function fetchRatesMap(): Promise<Map<string, RateEntry[]>> {
     return _ratesMapCache;
   }
 
-  const response = await fetch(SNB_MONTHLY_CSV, {
-    headers: {
-      "Accept": "text/csv,text/plain,*/*",
-      "User-Agent": "mcp-swiss/0.1.0",
-    },
+  const response = await httpFetch(SNB_MONTHLY_CSV, {
+    headers: { "Accept": "text/csv,text/plain,*/*" },
   });
 
   if (!response.ok) {

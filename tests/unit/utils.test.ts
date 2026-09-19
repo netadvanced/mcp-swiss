@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildUrl, fetchJSON } from '../../src/utils/http.js';
+import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -134,5 +134,33 @@ describe('fetchJSON', () => {
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-Custom']).toBe('header');
+  });
+});
+
+// ── httpFetch ─────────────────────────────────────────────────────────────────
+
+describe('httpFetch', () => {
+  it('sends the versioned User-Agent and a timeout signal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await httpFetch('https://example.com/api', { headers: { Accept: 'text/plain' } });
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['User-Agent']).toBe(USER_AGENT);
+    expect(headers.Accept).toBe('text/plain');
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('derives the User-Agent from package.json', () => {
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+/);
+    expect(USER_AGENT).toBe(`mcp-swiss/${VERSION}`);
+  });
+
+  it('turns an abort timeout into a readable error', async () => {
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
+
+    await expect(httpFetch('https://example.com/slow')).rejects.toThrow(/timed out after .* https:\/\/example\.com\/slow/);
   });
 });

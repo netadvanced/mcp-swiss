@@ -311,7 +311,7 @@ By default, mcp-swiss loads all 22 modules (79 tools). For better token efficien
 | Preset | Modules | Tools | Token Savings |
 |--------|---------|-------|---------------|
 | `commuter` | transport, weather, holidays | 14 | 81% |
-| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow | 19 | 75% |
+| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow, pollen | 22 | 72% |
 | `business` | companies, geodata, post, energy, statistics, snb | 24 | 67% |
 | `citizen` | parliament, voting, holidays, news | 17 | 77% |
 | `minimal` | transport | 5 | 93% |
