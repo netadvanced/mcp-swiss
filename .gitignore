@@ -3,3 +3,6 @@ dist/
 *.js.map
 .env
 coverage/
+
+# Claude Code agent worktrees
+.claude/worktrees/

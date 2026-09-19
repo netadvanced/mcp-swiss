@@ -24,7 +24,7 @@ updates:
           - "patch"
     open-pull-requests-limit: 10
     reviewers:
-      - "vikramgorla"
+      - "netadvanced"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
