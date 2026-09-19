@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   moduleRegistry,
   presets,
-  parseArgs,
   resolveModules,
-} from "../../src/index.js";
+} from "../../src/registry.js";
+import { parseArgs } from "../../src/config.js";
 
 // ── Module Registry ──────────────────────────────────────────────────────────
 
@@ -241,5 +241,48 @@ describe("resolveModules()", () => {
     const active = resolveModules(new Set(["geodata"]));
     expect(active[0].tools.length).toBeGreaterThan(0);
     expect(typeof active[0].handler).toBe("function");
+  });
+});
+
+// ── Transport / discovery options ───────────────────────────────────────────
+
+describe("CLI Arguments — transport and discovery", () => {
+  it("defaults to stdio on 127.0.0.1:3000 without discovery", () => {
+    const result = parseArgs([], {});
+    expect(result.http).toBe(false);
+    expect(result.port).toBe(3000);
+    expect(result.host).toBe("127.0.0.1");
+    expect(result.discovery).toBe(false);
+  });
+
+  it("parses --http --port --host --discovery", () => {
+    const result = parseArgs(["--http", "--port", "8080", "--host", "0.0.0.0", "--discovery"], {});
+    expect(result).toMatchObject({ http: true, port: 8080, host: "0.0.0.0", discovery: true });
+  });
+
+  it("reads MCP_TRANSPORT, PORT, HOST and MCP_SWISS_DISCOVERY from the environment", () => {
+    const result = parseArgs([], {
+      MCP_TRANSPORT: "HTTP",
+      PORT: "9000",
+      HOST: "0.0.0.0",
+      MCP_SWISS_DISCOVERY: "1",
+    });
+    expect(result).toMatchObject({ http: true, port: 9000, host: "0.0.0.0", discovery: true });
+  });
+
+  it("flags win over environment", () => {
+    const result = parseArgs(["--port", "4000", "--host", "::1"], { PORT: "9000", HOST: "0.0.0.0" });
+    expect(result.port).toBe(4000);
+    expect(result.host).toBe("::1");
+  });
+
+  it("rejects an invalid port", () => {
+    const exitMock = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    const stderrMock = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    parseArgs(["--port", "not-a-port"], {});
+    expect(exitMock).toHaveBeenCalledWith(1);
+    expect(stderrMock.mock.calls[0][0]).toContain("Invalid port");
+    exitMock.mockRestore();
+    stderrMock.mockRestore();
   });
 });
