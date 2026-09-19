@@ -20,6 +20,7 @@ import { trafficTools, handleTraffic } from "./modules/traffic.js";
 import { earthquakeTools, handleEarthquakes } from "./modules/earthquakes.js";
 import { snowTools, handleSnow } from "./modules/snow.js";
 import { pollenTools, handlePollen } from "./modules/pollen.js";
+import { gwrTools, handleGwr } from "./modules/gwr.js";
 
 // ── Module Registry ──────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
   earthquakes: { description: "SED earthquakes: recent events, details, nearby search",                  tools: earthquakeTools,  handler: handleEarthquakes as ToolHandler },
   snow:        { description: "SLF snow depth from IMIS and study-plot stations",                        tools: snowTools,        handler: handleSnow },
   pollen:      { description: "MeteoSwiss pollen concentrations",                                        tools: pollenTools,      handler: handlePollen },
+  gwr:         { description: "Federal building register (GWR): buildings, dwellings, heating by address/EGID", tools: gwrTools,      handler: handleGwr },
 };
 
 // ── Presets ───────────────────────────────────────────────────────────────────
@@ -68,7 +70,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
 export const presets: Record<string, string[]> = {
   commuter:  ["transport", "weather", "holidays"],
   outdoor:   ["weather", "avalanche", "hiking", "earthquakes", "dams", "snow", "pollen"],
-  business:  ["companies", "geodata", "post", "energy", "statistics", "snb"],
+  business:  ["companies", "geodata", "post", "energy", "statistics", "snb", "gwr"],
   citizen:   ["parliament", "voting", "holidays", "news"],
   minimal:   ["transport"],
   full:      Object.keys(moduleRegistry),

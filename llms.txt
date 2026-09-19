@@ -1,10 +1,10 @@
 # mcp-swiss
-> Swiss open data MCP server — 68 tools, 20 modules, zero API keys
+> Swiss open data MCP server — 82 tools, 23 modules, zero API keys
 
 ## What
 MCP (Model Context Protocol) server providing Swiss public data to AI assistants.
 
-## Tools (68 across 20 modules)
+## Tools (82 across 23 modules)
 - Transport: train/bus connections, departures, stations (SBB/PostBus)
 - Weather: MeteoSwiss live conditions, history
 - Hydrology: river/lake levels and temperatures (BAFU)
@@ -26,6 +26,9 @@ MCP (Model Context Protocol) server providing Swiss public data to AI assistants
 - Real Estate: property prices, rent index
 - Traffic: ASTRA counting stations
 - Earthquakes: Swiss Seismological Service (SED)
+- Snow: SLF snow depth, stations, measurements
+- Pollen: MeteoSwiss pollen concentrations
+- Buildings (GWR): federal register of buildings & dwellings — search by address, details by EGID, buildings nearby
 
 ## Install
 npx mcp-swiss
