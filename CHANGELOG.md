@@ -7,7 +7,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [Unreleased]
+## [0.9.0] - 2026-09-19
 
 First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss), rebased on upstream `develop` (v0.8.0: pollen module, snow fixes, dependency updates through 2026-09-14).
 
