@@ -626,7 +626,7 @@ We welcome contributions! mcp-swiss follows a strict PR-based workflow to keep t
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+
 - No API keys or accounts needed
 
 ## License
