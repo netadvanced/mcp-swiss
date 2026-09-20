@@ -323,6 +323,9 @@ describe("get_pollen_daily", () => {
   });
 
   it("throws for unknown station", async () => {
+    // The station check reads the live list, so this needs the mock like any
+    // other call — without it the test reaches MeteoSwiss for real.
+    mockFetchCSV(mockDailyCSV);
     await expect(
       handlePollen("get_pollen_daily", { station: "YYY" }),
     ).rejects.toThrow('Unknown pollen station "YYY"');

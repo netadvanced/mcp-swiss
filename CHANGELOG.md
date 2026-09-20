@@ -51,6 +51,9 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - SECURITY.md described a stdio-only tool that opens no port
 
 ### Fixed
+- Argument validation rejected values the handlers had always accepted: a station id sent as `2135` rather than `"2135"`, and enum values in the wrong case (`type: "IMIS"`, `canton: "vs"`). Both work again, and the handler receives the canonical spelling
+- A session slot stayed reserved if building the server threw, so repeated failures could fill the cap permanently while `/health` reported no sessions
+- `npm test` now fails any test that reaches the network. One pollen test was quietly fetching live data and passing on it
 - `get_avalanche_bulletin` reported an unknown region as a successful result with an `error` key, so an agent read the failure as data
 - Recycling used the host timezone for "today" and for the default month, which is wrong for a server outside Switzerland
 - `get_traffic_nearby` accepted any radius; it now clamps to 50 km as the hiking equivalent does

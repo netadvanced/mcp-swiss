@@ -28,6 +28,27 @@ describe("validateArgs", () => {
     expect(validateArgs(tool({ on: { type: "boolean" } }), { on: "true" })).toEqual({ on: true });
   });
 
+  it("accepts the other JSON type where handlers always did", () => {
+    // Callers sent station ids and postcodes as numbers long before validation
+    // existed; rejecting them now would be a regression, not a fix.
+    expect(validateArgs(tool({ station: { type: "string" } }), { station: 2135 })).toEqual({
+      station: "2135",
+    });
+    expect(validateArgs(tool({ postcode: { type: "string" } }), { postcode: 8001 })).toEqual({
+      postcode: "8001",
+    });
+  });
+
+  it("matches enums case-insensitively and returns the canonical value", () => {
+    const schema = tool({ type: { type: "string", enum: ["imis", "study-plot"] } });
+    expect(validateArgs(schema, { type: "IMIS" })).toEqual({ type: "imis" });
+    expect(validateArgs(schema, { type: "Study-Plot" })).toEqual({ type: "study-plot" });
+    expect(() => validateArgs(schema, { type: "imis2" })).toThrow(/must be one of/);
+
+    const list = tool({ modules: { type: "array", items: { enum: ["weather", "snow"] } } });
+    expect(validateArgs(list, { modules: ["SNOW"] })).toEqual({ modules: ["snow"] });
+  });
+
   it("enforces required arguments, including empty strings", () => {
     const schema = tool({ station: { type: "string" } }, ["station"]);
     expect(() => validateArgs(schema, {})).toThrow(/station is required/);

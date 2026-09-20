@@ -33,19 +33,34 @@ function describe(value: unknown): string {
 }
 
 /**
- * Models routinely send numbers and booleans as strings. Accept those when the
- * value is unambiguous rather than failing a call that clearly meant well.
+ * Models move values between JSON types freely, and these handlers accepted
+ * both forms before validation existed: a station id sent as 2135 rather than
+ * "2135" has to keep working. Coerce only where the meaning is unambiguous.
  */
 function coerce(value: unknown, type: PropertySchema["type"]): unknown {
   if (type === "number" && typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : value;
   }
+  if (type === "string" && (typeof value === "number" || typeof value === "boolean")) {
+    return String(value);
+  }
   if (type === "boolean" && typeof value === "string") {
     if (value === "true") return true;
     if (value === "false") return false;
   }
   return value;
+}
+
+/**
+ * Enums carry canonical spellings, but handlers used to lower-case their input.
+ * Match case-insensitively and hand the handler the canonical value.
+ */
+function matchEnum(value: unknown, allowed: unknown[]): unknown | undefined {
+  if (allowed.includes(value)) return value;
+  if (typeof value !== "string") return undefined;
+  const folded = value.toLowerCase();
+  return allowed.find((option) => typeof option === "string" && option.toLowerCase() === folded);
 }
 
 function checkType(name: string, value: unknown, schema: PropertySchema): unknown {
@@ -81,13 +96,16 @@ function checkType(name: string, value: unknown, schema: PropertySchema): unknow
         throw new InvalidArgumentError(`${name} takes at most ${schema.maxItems} item(s)`);
       }
       if (schema.items?.enum) {
-        for (const item of coerced) {
-          if (!schema.items.enum.includes(item)) {
+        const allowed = schema.items.enum;
+        return coerced.map((item) => {
+          const match = matchEnum(item, allowed);
+          if (match === undefined) {
             throw new InvalidArgumentError(
-              `${name} has an unknown value ${describe(item)}; allowed: ${schema.items.enum.join(", ")}`
+              `${name} has an unknown value ${describe(item)}; allowed: ${allowed.join(", ")}`
             );
           }
-        }
+          return match;
+        });
       }
       break;
     }
@@ -95,10 +113,14 @@ function checkType(name: string, value: unknown, schema: PropertySchema): unknow
       break;
   }
 
-  if (schema.enum && !schema.enum.includes(coerced)) {
-    throw new InvalidArgumentError(
-      `${name} must be one of: ${schema.enum.join(", ")}; got ${describe(value)}`
-    );
+  if (schema.enum) {
+    const match = matchEnum(coerced, schema.enum);
+    if (match === undefined) {
+      throw new InvalidArgumentError(
+        `${name} must be one of: ${schema.enum.join(", ")}; got ${describe(value)}`
+      );
+    }
+    return match;
   }
 
   return coerced;

@@ -324,6 +324,30 @@ describe("HTTP transport", () => {
     await transport.close().catch(() => undefined);
   });
 
+  it("frees the reserved slot when the server factory throws", async () => {
+    let fail = true;
+    const base = await start({
+      maxSessions: 2,
+      createMcpServer: () => {
+        if (fail) throw new Error("factory exploded");
+        return createServer({ modules: resolveModules(new Set(["holidays"])) });
+      },
+    });
+
+    for (let i = 0; i < 4; i++) {
+      const res = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+      expect(res.status).toBe(500);
+      await res.text();
+    }
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(0);
+
+    // Without releasing the slot, the cap would now be permanently full.
+    fail = false;
+    const ok = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+    expect(ok.status).toBe(200);
+    await ok.text();
+  });
+
   it("caps concurrent sessions with 429 + Retry-After", async () => {
     const base = await start({ maxSessions: 2 });
     for (let i = 0; i < 2; i++) {

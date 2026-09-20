@@ -173,17 +173,24 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
     }
     pending += 1;
 
-    const server = opts.createMcpServer();
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      enableDnsRebindingProtection: Boolean(opts.allowedHosts?.length),
-      allowedHosts: opts.allowedHosts,
-      onsessioninitialized: (id) => {
-        const now = Date.now();
-        sessions.set(id, { transport, server, lastSeen: now, startedAt: now, openStreams: 0 });
-      },
-      onsessionclosed: (id) => closeSession(id),
-    });
+    let server: Server;
+    let transport: StreamableHTTPServerTransport;
+    try {
+      server = opts.createMcpServer();
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableDnsRebindingProtection: Boolean(opts.allowedHosts?.length),
+        allowedHosts: opts.allowedHosts,
+        onsessioninitialized: (id) => {
+          const now = Date.now();
+          sessions.set(id, { transport, server, lastSeen: now, startedAt: now, openStreams: 0 });
+        },
+        onsessionclosed: (id) => closeSession(id),
+      });
+    } catch (err) {
+      pending -= 1;
+      throw err;
+    }
 
     try {
       await server.connect(transport);
