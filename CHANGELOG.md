@@ -35,6 +35,7 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - Node.js 22+ required (Node 20 is EOL); CI on 22/24, Docker `node:24-alpine`
 - All outbound requests share one client: `mcp-swiss-ng/<version>` User-Agent and a 30 s timeout (`MCP_SWISS_TIMEOUT_MS`; 120 s for the slow BFS PxWeb API); several modules previously had no timeout
 - Server reports the real package version (was hard-coded `0.5.8`)
+- Tool schemas trimmed 33% (≈9.7k → 6.5k tokens per conversation; upstream #107). `enum`/`default` used where the handler enforces them. Transport `x`/`y` were documented the wrong way round (x is latitude). `npm run docs:tools` regenerates `docs/tools.schema.json` and the manifest tool list; CI checks they are in sync
 - `outdoor` preset includes `pollen`; `--list-modules` shows module descriptions
 - `src/index.ts` split into `registry`, `config`, `server`, `http-server`; importing modules no longer starts a server
 - vitest 5, eslint 10.11, GitHub Actions v7; TypeScript stays on 6.x until typescript-eslint supports 7

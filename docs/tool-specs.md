@@ -54,8 +54,8 @@
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | query | string | ⬜ | Station name to search for |
-| x | number | ⬜ | Longitude (WGS84) |
-| y | number | ⬜ | Latitude (WGS84) |
+| x | number | ⬜ | Latitude (WGS84) |
+| y | number | ⬜ | Longitude (WGS84) |
 | type | string | ⬜ | Filter: `all`, `station`, `poi`, `address` |
 
 > At least one of `query`, or both `x`+`y` should be provided.
@@ -233,8 +233,8 @@
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| x | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
-| y | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
+| x | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
+| y | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
 | limit | number | ⬜ | Number of results (default: 10) |
 | distance | number | ⬜ | Maximum search radius in meters |
 
