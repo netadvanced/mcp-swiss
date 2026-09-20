@@ -2,7 +2,7 @@
  * Swiss Earthquake module
  *
  * Data source: Swiss Seismological Service (SED) at ETH Zürich
- * API: FDSN Event Web Service — http://arclink.ethz.ch/fdsnws/event/1/
+ * API: FDSN Event Web Service — https://eida.ethz.ch/fdsnws/event/1/
  * Format: Pipe-delimited text (format=text)
  * Auth: None required
  *
@@ -14,7 +14,9 @@
 
 import { buildUrl, httpFetch } from "../utils/http.js";
 
-const BASE = "http://arclink.ethz.ch/fdsnws/event/1/query";
+// SED's EIDA node serves the same catalog as arclink.ethz.ch, which is
+// plain HTTP only (nothing listens on 443).
+const BASE = "https://eida.ethz.ch/fdsnws/event/1/query";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -245,7 +247,7 @@ async function handleGetRecentEarthquakes(
     min_magnitude: minMag,
     include_blasts: includeBlasts,
     source: "Swiss Seismological Service (SED), ETH Zürich",
-    api: "FDSN Event Web Service — http://arclink.ethz.ch/fdsnws/event/1/",
+    api: "FDSN Event Web Service — https://eida.ethz.ch/fdsnws/event/1/",
     events,
   });
 
@@ -259,7 +261,7 @@ async function handleGetRecentEarthquakes(
       min_magnitude: minMag,
       include_blasts: includeBlasts,
       source: "Swiss Seismological Service (SED), ETH Zürich",
-      api: "FDSN Event Web Service — http://arclink.ethz.ch/fdsnws/event/1/",
+      api: "FDSN Event Web Service — https://eida.ethz.ch/fdsnws/event/1/",
       events: trimmed,
     });
   }
@@ -302,7 +304,7 @@ async function handleGetEarthquakeDetails(
 
   return JSON.stringify({
     source: "Swiss Seismological Service (SED), ETH Zürich",
-    api: "FDSN Event Web Service — http://arclink.ethz.ch/fdsnws/event/1/",
+    api: "FDSN Event Web Service — https://eida.ethz.ch/fdsnws/event/1/",
     event: events[0],
   });
 }
@@ -362,7 +364,7 @@ async function handleSearchEarthquakesByLocation(
     min_magnitude: minMag,
     limit,
     source: "Swiss Seismological Service (SED), ETH Zürich",
-    api: "FDSN Event Web Service — http://arclink.ethz.ch/fdsnws/event/1/",
+    api: "FDSN Event Web Service — https://eida.ethz.ch/fdsnws/event/1/",
     events,
   });
 }

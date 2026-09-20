@@ -14,6 +14,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
 - `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
 - Removed the unreferenced `registerNewsTools`, `registerSnbTools` and `registerVotingTools`, which dragged `McpServer` and the undeclared `zod` dependency into every module load.
+- Earthquake lookups went over plain HTTP. They now use the SED EIDA node over HTTPS (`https://eida.ethz.ch/fdsnws/event/1/`) — same catalog, and `arclink.ethz.ch` has nothing listening on 443.
 
 ## [0.9.0] - 2026-09-19
 
