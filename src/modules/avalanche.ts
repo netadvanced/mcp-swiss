@@ -470,10 +470,9 @@ async function getAvalancheBulletin(args: Record<string, unknown>): Promise<stri
 
   const region = args.region ? findRegion(String(args.region)) : undefined;
   if (args.region && !region) {
-    return JSON.stringify({
-      error: `Unknown region: ${String(args.region)}`,
-      hint: "Use list_avalanche_regions to find the id or name.",
-    });
+    throw new Error(
+      `Unknown region: ${String(args.region)}. Use list_avalanche_regions to find the id or name.`
+    );
   }
 
   // The geojson variant carries the same bulletin fields plus the region

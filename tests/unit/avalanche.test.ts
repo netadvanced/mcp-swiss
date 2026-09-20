@@ -264,9 +264,11 @@ describe("get_avalanche_bulletin out of season", () => {
 describe("argument handling", () => {
   it("rejects an unknown region without calling the API", async () => {
     const urls = mockFetch(winterBulletins);
-    const result = JSON.parse(await handleAvalanche("get_avalanche_bulletin", { region: "Mordor" }));
-    expect(result.error).toContain("Mordor");
-    expect(result.hint).toContain("list_avalanche_regions");
+    // A lookup failure has to reach the client as isError, not as a result
+    // object the agent would read as data.
+    await expect(
+      handleAvalanche("get_avalanche_bulletin", { region: "Mordor" })
+    ).rejects.toThrow(/Mordor.*list_avalanche_regions/);
     expect(urls).toHaveLength(0);
   });
 

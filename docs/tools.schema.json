@@ -1631,23 +1631,6 @@
         "properties": {
           "station": {
             "type": "string",
-            "enum": [
-              "PBE",
-              "PBS",
-              "PBU",
-              "PCF",
-              "PDS",
-              "PGE",
-              "PLO",
-              "PLS",
-              "PLU",
-              "PLZ",
-              "PMU",
-              "PNE",
-              "PPY",
-              "PSN",
-              "PZH"
-            ],
             "description": "e.g. PZH Zürich, PBE Bern, PBS Basel"
           }
         }
@@ -1664,23 +1647,6 @@
         "properties": {
           "station": {
             "type": "string",
-            "enum": [
-              "PBE",
-              "PBS",
-              "PBU",
-              "PCF",
-              "PDS",
-              "PGE",
-              "PLO",
-              "PLS",
-              "PLU",
-              "PLZ",
-              "PMU",
-              "PNE",
-              "PPY",
-              "PSN",
-              "PZH"
-            ],
             "description": "e.g. PZH Zürich, PBE Bern"
           },
           "days": {

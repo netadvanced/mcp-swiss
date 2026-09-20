@@ -100,11 +100,6 @@ function normalizeStation(station: string): string {
  * sites, so the codes a call is checked against come from the live station list
  * below, not from here.
  */
-const STATION_CODES = [
-  "PBE", "PBS", "PBU", "PCF", "PDS", "PGE", "PLO",
-  "PLS", "PLU", "PLZ", "PMU", "PNE", "PPY", "PSN", "PZH",
-];
-
 const STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 let _stationCodes: Set<string> | null = null;
 let _stationCodesAt = 0;
@@ -151,7 +146,6 @@ export const pollenTools = [
       properties: {
         station: {
           type: "string",
-          enum: STATION_CODES,
           description: "e.g. PZH Zürich, PBE Bern, PBS Basel",
         },
       },
@@ -167,7 +161,6 @@ export const pollenTools = [
       properties: {
         station: {
           type: "string",
-          enum: STATION_CODES,
           description: "e.g. PZH Zürich, PBE Bern",
         },
         days: {

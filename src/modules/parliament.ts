@@ -1,7 +1,7 @@
 // Data source: OpenParlData.ch (CC BY 4.0)
 // Swiss Parliament data — federal and cantonal affairs, members, votes, speeches
 
-import { httpFetch } from "../utils/http.js";
+import { fetchBody } from "../utils/http.js";
 
 const BASE = "https://api.openparldata.ch/v1";
 
@@ -37,12 +37,16 @@ function fit<T>(items: T[], build: (kept: T[], dropped: number) => unknown): str
 
 /** Fetch OpenParlData endpoint — follows redirects, returns typed response */
 async function apiFetch<T>(url: string): Promise<OpenParlResponse<T>> {
-  const res = await httpFetch(url, { redirect: "follow" });
-  if (!res.ok) {
-    throw new Error(`OpenParlData API error: HTTP ${res.status} for ${url}`);
-  }
-  const json = (await res.json()) as OpenParlResponse<T>;
-  return json;
+  return fetchBody<OpenParlResponse<T>>(
+    url,
+    { redirect: "follow", rawStatus: true },
+    async (res) => {
+      if (!res.ok) {
+        throw new Error(`OpenParlData API error: HTTP ${res.status} for ${url}`);
+      }
+      return res.json() as Promise<OpenParlResponse<T>>;
+    }
+  );
 }
 
 /** Build URL with query parameters, ensuring trailing slash on path */

@@ -186,7 +186,7 @@ export async function handleTraffic(name: string, args: Record<string, unknown>)
     case "get_traffic_nearby": {
       const lat = args.lat as number;
       const lon = args.lon as number;
-      const radius = (args.radius as number | undefined) ?? 5000;
+      const radius = Math.min(50000, Math.max(1, Number(args.radius) || 5000));
 
       const [e, n] = wgs84ToLv95(lat, lon);
 

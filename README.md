@@ -344,7 +344,7 @@ docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
 | Max concurrent sessions | — | `MCP_MAX_SESSIONS` | `64` |
 | Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `30000` |
 
-Each session gets its own server instance. Idle sessions are dropped after 30 minutes (a session with an open event stream is kept), further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
+Each session gets its own server instance. Idle sessions are dropped after 30 minutes and every session after 8 hours, so an open event stream cannot hold a slot indefinitely. Further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
 
 **The server refuses to start on a non-loopback address unless `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are both set.** The data is public, but an open server is an open proxy onto the upstream APIs, on your IP and their rate limits. Behind a reverse proxy, put the public hostname (with port, if it isn't the default) in `MCP_ALLOWED_HOSTS`.
 
