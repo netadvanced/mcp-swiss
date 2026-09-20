@@ -1,6 +1,6 @@
 import { inflateRawSync } from "node:zlib";
 
-import { fetchJSON, httpFetch, buildUrl } from "../utils/http.js";
+import { fetchBody, fetchJSON, buildUrl } from "../utils/http.js";
 
 const BASE = "https://api3.geo.admin.ch";
 const PLZ_LAYER = "ch.swisstopo-vd.ortschaftenverzeichnis_plz";
@@ -167,11 +167,10 @@ function parseRegister(csv: string): RegisterRow[] {
 async function loadRegister(): Promise<RegisterRow[]> {
   if (registerCache) return registerCache;
   registerPending ??= (async () => {
-    const response = await httpFetch(PLZ_REGISTER_URL, { timeoutMs: 60_000 });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText} — ${PLZ_REGISTER_URL}`);
-    }
-    const rows = parseRegister(readCsvFromZip(Buffer.from(await response.arrayBuffer())));
+    const zip = await fetchBody(PLZ_REGISTER_URL, { timeoutMs: 60_000 }, async (response) =>
+      Buffer.from(await response.arrayBuffer())
+    );
+    const rows = parseRegister(readCsvFromZip(zip));
     registerCache = rows;
     return rows;
   })().finally(() => {

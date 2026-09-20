@@ -19,6 +19,12 @@ export interface HttpServerOptions {
   corsOrigin?: string;
   /** Idle sessions are closed after this many ms (default 30 min). */
   sessionTtlMs?: number;
+  /**
+   * Hard limit on a session's age (default 8 h). An open event stream keeps a
+   * session out of the idle sweep, so without this one client could hold a
+   * slot — and with a small cap, the whole server — indefinitely.
+   */
+  sessionMaxLifetimeMs?: number;
   /** Maximum concurrent sessions before /mcp answers 429 (default 64). */
   maxSessions?: number;
   /** Include the session count in /health (default true; off for public binds). */
@@ -29,6 +35,7 @@ interface Session {
   transport: StreamableHTTPServerTransport;
   server: Server;
   lastSeen: number;
+  startedAt: number;
   /** Open SSE streams; a session with one is never swept as idle. */
   openStreams: number;
 }
@@ -109,6 +116,7 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
   /** Handshakes past the cap check but not yet registered. */
   let pending = 0;
   const ttl = opts.sessionTtlMs ?? 30 * 60_000;
+  const maxLifetime = opts.sessionMaxLifetimeMs ?? 8 * 60 * 60_000;
   const maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS;
 
   const closeSession = (id: string) => {
@@ -120,11 +128,13 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
   };
 
   const sweeper = setInterval(() => {
-    const cutoff = Date.now() - ttl;
+    const now = Date.now();
     for (const [id, s] of sessions) {
-      if (s.openStreams === 0 && s.lastSeen < cutoff) closeSession(id);
+      const idle = s.openStreams === 0 && s.lastSeen < now - ttl;
+      const tooOld = s.startedAt < now - maxLifetime;
+      if (idle || tooOld) closeSession(id);
     }
-  }, Math.min(ttl, 60_000));
+  }, Math.min(ttl, maxLifetime, 60_000));
   sweeper.unref();
 
   const handleMcp = async (req: IncomingMessage, res: ServerResponse) => {
@@ -169,7 +179,8 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
       enableDnsRebindingProtection: Boolean(opts.allowedHosts?.length),
       allowedHosts: opts.allowedHosts,
       onsessioninitialized: (id) => {
-        sessions.set(id, { transport, server, lastSeen: Date.now(), openStreams: 0 });
+        const now = Date.now();
+        sessions.set(id, { transport, server, lastSeen: now, startedAt: now, openStreams: 0 });
       },
       onsessionclosed: (id) => closeSession(id),
     });

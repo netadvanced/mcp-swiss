@@ -2,7 +2,7 @@
 // Data source: https://www.strompreis.elcom.admin.ch (official Swiss electricity price portal)
 // GraphQL API: https://www.strompreis.elcom.admin.ch/api/graphql
 
-import { httpFetch } from "../utils/http.js";
+import { fetchBody } from "../utils/http.js";
 
 const GRAPHQL_URL = "https://www.strompreis.elcom.admin.ch/api/graphql";
 const currentYear = (): string => String(new Date().getFullYear());
@@ -55,20 +55,18 @@ interface GraphQLResponse<T> {
 // ── GraphQL helper ───────────────────────────────────────────────────────────
 
 async function gql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
-  const response = await httpFetch(GRAPHQL_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
+  const json = await fetchBody<GraphQLResponse<T>>(
+    GRAPHQL_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ query, variables }),
     },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — ElCom GraphQL`);
-  }
-
-  const json = await response.json() as GraphQLResponse<T>;
+    (res) => res.json() as Promise<GraphQLResponse<T>>
+  );
 
   if (json.errors?.length) {
     throw new Error(`ElCom API error: ${json.errors.map((e) => e.message).join("; ")}`);

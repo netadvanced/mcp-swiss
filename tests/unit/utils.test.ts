@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
 
 afterEach(() => {
@@ -134,6 +136,71 @@ describe('fetchJSON', () => {
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-Custom']).toBe('header');
+  });
+});
+
+// ── retry against a real socket ───────────────────────────────────────────────
+
+describe('fetchJSON retry over a real connection', () => {
+  let server: Server | undefined;
+
+  afterEach(async () => {
+    if (server) {
+      const s = server;
+      server = undefined;
+      await new Promise((r) => s.close(r));
+    }
+  });
+
+  async function serve(handler: (attempt: number, res: import('node:http').ServerResponse) => void) {
+    let attempt = 0;
+    server = createServer((_req, res) => handler(++attempt, res));
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+    return { url: `http://127.0.0.1:${port}/`, attempts: () => attempt };
+  }
+
+  it('retries a connection dropped part-way through the body', async () => {
+    // This is what transport.opendata.ch does under its rate limit: headers and
+    // some bytes arrive, then the socket dies. Retrying only around fetch()
+    // would never see it, because the failure happens at read time.
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': '40' });
+        res.write('{"partial":');
+        res.socket?.destroy();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('retries a connection dropped before the headers', async () => {
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.socket?.destroy();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('does not retry a 500', async () => {
+    const { url, attempts } = await serve((_attempt, res) => {
+      res.writeHead(500);
+      res.end('nope');
+    });
+
+    await expect(fetchJSON(url)).rejects.toThrow('HTTP 500');
+    expect(attempts()).toBe(1);
   });
 });
 

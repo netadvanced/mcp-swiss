@@ -1,4 +1,4 @@
-import { fetchJSON, httpFetch } from "../utils/http.js";
+import { fetchBody, fetchJSON } from "../utils/http.js";
 
 const BASE = "https://www.zefix.admin.ch/ZefixREST/api/v1";
 
@@ -146,15 +146,21 @@ interface SearchResponse {
 }
 
 async function search(body: Record<string, unknown>): Promise<string> {
-  const response = await httpFetch(`${BASE}/firm/search.json`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ languageKey: "en", ...body }),
-  });
-  if (response.status === 404) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const data = await response.json() as SearchResponse;
+  const data = await fetchBody<SearchResponse | null>(
+    `${BASE}/firm/search.json`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ languageKey: "en", ...body }),
+      rawStatus: true,
+    },
+    async (response) => {
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return response.json() as Promise<SearchResponse>;
+    }
+  );
+  if (!data) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
   // ZEFIX answers "no result" and "filter too narrow" with a 200 + error body.
   if (data.error || !data.list?.length) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
 

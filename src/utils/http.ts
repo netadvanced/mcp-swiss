@@ -21,20 +21,33 @@ export interface HttpOptions extends RequestInit {
   timeoutMs?: number;
   /** Extra attempts after a dropped connection (default 1). */
   retries?: number;
+  /** Let the caller handle non-2xx responses instead of throwing (fetchBody only). */
+  rawStatus?: boolean;
 }
 
 const RETRY_DELAY_MS = 400;
 
+const RETRYABLE_CODES = [
+  "UND_ERR_SOCKET",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EPIPE",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+];
+
 /**
  * Connection-level failures worth one more try: some upstreams (notably
- * transport.opendata.ch under its per-IP rate limit) close the socket
- * mid-response. Timeouts and HTTP error statuses are not retried.
+ * transport.opendata.ch under its per-IP rate limit) close the socket, either
+ * before the headers or part-way through the body. Timeouts and HTTP error
+ * statuses are not retried.
  */
 function isTransientNetworkError(err: unknown): boolean {
   if (!(err instanceof Error) || err.name === "TimeoutError") return false;
-  const codes = ["UND_ERR_SOCKET", "ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT", "EAI_AGAIN"];
   const cause = (err as { cause?: { code?: string } }).cause;
-  return err.message === "fetch failed" || codes.includes(cause?.code ?? "");
+  if (RETRYABLE_CODES.includes(cause?.code ?? "")) return true;
+  // undici reports a mid-body drop as TypeError: terminated
+  return err.message === "terminated" || err.message === "fetch failed";
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -68,20 +81,52 @@ export async function httpFetch(url: string, options: HttpOptions = {}): Promise
   throw lastError;
 }
 
-export async function fetchJSON<T>(url: string, options?: HttpOptions): Promise<T> {
-  const response = await httpFetch(url, {
-    ...options,
-    headers: {
-      "Accept": "application/json",
-      ...(options?.headers as Record<string, string> | undefined),
-    },
-  });
+/**
+ * Fetch and read the body under one retry budget. A connection dropped while
+ * the body streams fails at read time, not at fetch time, so retrying only
+ * around fetch() would miss exactly the case this exists for.
+ */
+export async function fetchBody<T>(
+  url: string,
+  options: HttpOptions | undefined,
+  read: (response: Response) => Promise<T>
+): Promise<T> {
+  const { retries = 1, ...rest } = options ?? {};
+  let lastError: unknown;
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await httpFetch(url, { ...rest, retries: 0 });
+      if (!response.ok && !rest.rawStatus) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
+      }
+      return await read(response);
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries || !isTransientNetworkError(err)) break;
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+    }
   }
+  throw lastError;
+}
 
-  return response.json() as Promise<T>;
+export async function fetchJSON<T>(url: string, options?: HttpOptions): Promise<T> {
+  return fetchBody(
+    url,
+    {
+      ...options,
+      headers: {
+        "Accept": "application/json",
+        ...(options?.headers as Record<string, string> | undefined),
+      },
+    },
+    (response) => response.json() as Promise<T>
+  );
+}
+
+/** Same retry budget as fetchJSON, for the CSV/XML/text upstreams. */
+export async function fetchText(url: string, options?: HttpOptions): Promise<string> {
+  return fetchBody(url, options, (response) => response.text());
 }
 
 export function buildUrl(base: string, params: Record<string, string | number | boolean | undefined>): string {

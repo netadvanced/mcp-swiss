@@ -5,7 +5,7 @@
 //   Monthly data: https://data.snb.ch/api/cube/devkum/data/csv/en
 //   Annual data:  https://data.snb.ch/api/cube/devkua/data/csv/en
 
-import { fetchJSON, httpFetch } from "../utils/http.js";
+import { fetchJSON, fetchText } from "../utils/http.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -178,15 +178,9 @@ async function fetchRatesMap(): Promise<Map<string, RateEntry[]>> {
     return _ratesMapCache;
   }
 
-  const response = await httpFetch(SNB_MONTHLY_CSV, {
+  const csv = await fetchText(SNB_MONTHLY_CSV, {
     headers: { "Accept": "text/csv,text/plain,*/*" },
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — SNB CSV`);
-  }
-
-  const csv = await response.text();
   _ratesMapCache = parseSnbCsv(csv);
   _ratesMapCachedAt = now;
   return _ratesMapCache;

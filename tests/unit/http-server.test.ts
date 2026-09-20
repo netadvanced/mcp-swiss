@@ -314,6 +314,16 @@ describe("HTTP transport", () => {
     expect((await client.listTools()).tools.length).toBeGreaterThan(0);
   });
 
+  it("closes a streaming session once it hits the maximum lifetime", async () => {
+    const base = await start({ sessionTtlMs: 60_000, sessionMaxLifetimeMs: 120 });
+    const { transport } = await connectClient(base); // holds a GET stream open
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(1);
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(0);
+    await transport.close().catch(() => undefined);
+  });
+
   it("caps concurrent sessions with 429 + Retry-After", async () => {
     const base = await start({ maxSessions: 2 });
     for (let i = 0; i < 2; i++) {

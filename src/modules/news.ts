@@ -1,4 +1,4 @@
-import { httpFetch } from "../utils/http.js";
+import { fetchText } from "../utils/http.js";
 
 // ── SRF RSS Feed IDs ─────────────────────────────────────────────────────────
 // Verified working feeds (tested March 2026)
@@ -71,12 +71,7 @@ export function parseRssItems(xml: string): NewsArticle[] {
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
 async function fetchFeed(feedId: number): Promise<string> {
-  const url = `${BASE_URL}/${feedId}`;
-  const response = await httpFetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
-  }
-  return response.text();
+  return fetchText(`${BASE_URL}/${feedId}`);
 }
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────

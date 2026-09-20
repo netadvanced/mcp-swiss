@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- The connection retry only covered failures before the response headers. A socket dropped part-way through the body — which is what transport.opendata.ch does under its rate limit — failed at read time and was never retried. The retry now wraps the body read, and a test drops a real connection mid-body to prove it
+- A session holding an event stream was exempt from the idle sweep with no upper bound, so one client could hold a slot (and with a small cap, the server) indefinitely. Sessions now have a maximum lifetime (8 h, `sessionMaxLifetimeMs`)
 - HTTP session cap held only for sequential handshakes: concurrent `initialize` requests could all pass the check and overshoot it, and a handshake that failed after the server was built left an MCP server nothing would ever close. Slots are now reserved before the server is created and released when the handshake does not complete
 - Bearer comparison returned early on a length mismatch, leaking the token length; both sides are hashed first
 - `MCP_MAX_SESSIONS` silently fell back to 64 when set to `0` or junk; it now refuses to start

@@ -12,7 +12,7 @@
  *   - search_earthquakes_by_location: earthquakes near given coordinates
  */
 
-import { buildUrl, httpFetch } from "../utils/http.js";
+import { buildUrl, fetchBody } from "../utils/http.js";
 
 // SED's EIDA node serves the same catalog as arclink.ethz.ch, which is
 // plain HTTP only (nothing listens on 443).
@@ -146,20 +146,14 @@ function startTimeISO(days: number): string {
  * Returns the raw text body.
  */
 async function fetchFdsnText(url: string): Promise<string> {
-  const response = await httpFetch(url, {
-    headers: { "Accept": "text/plain" },
+  return fetchBody(url, { headers: { "Accept": "text/plain" }, rawStatus: true }, async (response) => {
+    // 204 No Content = no events found — not an error
+    if (response.status === 204) return "";
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
+    }
+    return response.text();
   });
-
-  // 204 No Content = no events found — not an error
-  if (response.status === 204) {
-    return "";
-  }
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
-  }
-
-  return response.text();
 }
 
 /**
