@@ -57,6 +57,31 @@ export const CALL_TOOL: ToolDefinition = {
   },
 };
 
+/**
+ * Anything can be thrown in JS, and `String(value)` on a plain object yields
+ * "[object Object]", which tells the agent nothing. Dig out something readable.
+ */
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message || error.name || "Error";
+  if (typeof error === "string") return error || "Unknown error";
+  if (error == null) return "Unknown error";
+  if (typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    for (const key of ["message", "error", "reason"]) {
+      const value = record[key];
+      if (typeof value === "string" && value) return value;
+    }
+    try {
+      const json = JSON.stringify(error);
+      if (json && json !== "{}") return json;
+    } catch {
+      // circular or non-serialisable — fall through
+    }
+    return "Unknown error";
+  }
+  return String(error);
+}
+
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 /**
@@ -132,7 +157,10 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
   const runTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
     if (discovery && name === DISCOVER_TOOL.name) return discover(args);
     if (discovery && name === CALL_TOOL.name) {
-      const target = typeof args.tool === "string" ? args.tool : "";
+      const target = typeof args.tool === "string" ? args.tool.trim() : "";
+      if (!target) {
+        throw new Error("swiss_call needs a tool name. Use swiss_discover to list the available tools.");
+      }
       if (target === DISCOVER_TOOL.name || target === CALL_TOOL.name) {
         throw new Error(`swiss_call cannot invoke ${target}`);
       }
@@ -144,8 +172,12 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
       const owner = Object.entries(moduleRegistry).find(([, m]) =>
         m.tools.some((t) => t.name === name)
       );
-      if (owner && discovery) {
-        throw new Error(`Tool ${name} belongs to module '${owner[0]}' — load it with swiss_discover first`);
+      if (owner) {
+        throw new Error(
+          discovery
+            ? `Tool ${name} belongs to module '${owner[0]}' — load it with swiss_discover first`
+            : `Tool ${name} belongs to module '${owner[0]}', which is not enabled on this server`
+        );
       }
       throw new Error(`Unknown tool: ${name}`);
     }
@@ -160,8 +192,10 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
       const result = await runTool(name, (args ?? {}) as Record<string, unknown>);
       return { content: [{ type: "text", text: result }] };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
+      return {
+        content: [{ type: "text", text: `Error: ${errorMessage(error)}` }],
+        isError: true,
+      };
     }
   });
 

@@ -253,10 +253,13 @@ describe("get_voting_results", () => {
     expect(result.data_url).toContain("data.bs.ch");
   });
 
-  it("returns error message when no votes found", async () => {
+  it("returns an empty result, not an error, when no votes match", async () => {
     mockFetch(mockEmptyRows);
     const result = JSON.parse(await handleGetVotingResults({}));
-    expect(result.error).toBeDefined();
+    expect(result.error).toBeUndefined();
+    expect(result.count).toBe(0);
+    expect(result.votes).toEqual([]);
+    expect(result.hint).toBeDefined();
   });
 
   it("sends User-Agent header", async () => {
@@ -461,9 +464,8 @@ describe("search_votes", () => {
     expect(Array.isArray(result.votes)).toBe(true);
   });
 
-  it("returns error for empty query", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "" }));
-    expect(result.error).toBeDefined();
+  it("rejects an empty query", async () => {
+    await expect(handleSearchVotes({ query: "" })).rejects.toThrow(/query is required/);
   });
 
   it("returns count 0 and empty votes when no match", async () => {
@@ -552,9 +554,8 @@ describe("search_votes", () => {
 // ── get_vote_details ──────────────────────────────────────────────────────────
 
 describe("get_vote_details", () => {
-  it("returns error when neither vote_title nor date provided", async () => {
-    const result = JSON.parse(await handleGetVoteDetails({}));
-    expect(result.error).toBeDefined();
+  it("rejects when neither vote_title nor date is provided", async () => {
+    await expect(handleGetVoteDetails({})).rejects.toThrow(/vote_title or date/);
   });
 
   it("returns vote title", async () => {
@@ -673,13 +674,11 @@ describe("get_vote_details", () => {
     expect(result.source).toContain("data.bs.ch");
   });
 
-  it("returns error for empty result", async () => {
+  it("rejects when no vote matches", async () => {
     mockFetch(mockEmptyRows);
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "NonExistent Vote XYZ" }),
-    );
-    expect(result.error).toBeDefined();
-    expect(result.hint).toBeDefined();
+    await expect(
+      handleGetVoteDetails({ vote_title: "NonExistent Vote XYZ" }),
+    ).rejects.toThrow(/search_votes/);
   });
 
   it("sends User-Agent header", async () => {
