@@ -16,6 +16,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `get_dams_by_canton` and `list_postcodes_in_canton` filtered by the canton's bounding box, so they returned places from neighbouring cantons under the wrong canton label. Lucerne, for instance, listed six dams, none of them in LU. Both now use a real canton attribute: dams are checked against the swissboundaries3d canton polygons, postcodes come from the canton column of the official locality register (AMTOVZ). Postcodes that only reach into a canton are listed separately with their main canton and address share, and dams on the German border are flagged.
 - `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
 - `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
+- Removed the unreferenced `registerNewsTools`, `registerSnbTools` and `registerVotingTools`, which dragged `McpServer` and the undeclared `zod` dependency into every module load.
+- Earthquake lookups went over plain HTTP. They now use the SED EIDA node over HTTPS (`https://eida.ethz.ch/fdsnws/event/1/`) — same catalog, and `arclink.ethz.ch` has nothing listening on 443.
+- `swiss_discover` and `swiss_call` were annotated `readOnlyHint: true` like the data tools, so a client that auto-approves read-only calls would auto-approve a tool that rewrites the session's tool list. Both meta-tools now carry their own annotations.
+- The MCP registry workflow pulled `mcp-publisher` from `releases/latest` with no checksum and installed it with `sudo` in a job holding `id-token: write`. It now pins v1.8.1, verifies the published SHA256 and installs into `$RUNNER_TEMP`.
+- The CI `npm audit` step had `continue-on-error: true`, so it could never fail the build. It now fails on high and critical advisories.
 
 ## [0.9.0] - 2026-09-19
 

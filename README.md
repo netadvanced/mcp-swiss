@@ -627,7 +627,7 @@ All official Swiss open data — no API keys required:
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss trail closures and hiking alerts | [swisstopo](https://www.swisstopo.admin.ch) |
 | [pxweb.bfs.admin.ch](https://www.pxweb.bfs.admin.ch) | BFS property prices + rent index | [BFS housing](https://www.bfs.admin.ch/bfs/en/home/statistics/construction-housing.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — ASTRA | Traffic counting stations + daily volumes | [ASTRA](https://www.astra.admin.ch) |
-| [arclink.ethz.ch](http://arclink.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](http://www.seismo.ethz.ch) |
+| [eida.ethz.ch](https://eida.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](https://www.seismo.ethz.ch) |
 | [measurement-api.slf.ch](https://measurement-api.slf.ch/public/api) | SLF snow depth + measurements (IMIS + study plots, CC BY 4.0) | [SLF](https://www.slf.ch) |
 | [data.geo.admin.ch](https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen/) | MeteoSwiss pollen concentrations (16 automatic stations, CC BY) | [MeteoSwiss](https://www.meteoswiss.admin.ch) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — BFS | Federal Register of Buildings and Dwellings (GWR/RegBL), updated weekly | [BFS GWR](https://www.housing-stat.ch) |

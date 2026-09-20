@@ -57,6 +57,32 @@ export const CALL_TOOL: ToolDefinition = {
   },
 };
 
+// The meta-tools are not plain lookups, so they don't get TOOL_ANNOTATIONS.
+// swiss_discover mutates the session's tool list and emits
+// notifications/tools/list_changed; a client that auto-approves read-only
+// tools must not auto-approve that.
+const DISCOVER_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+} as const;
+
+// swiss_call does whatever the tool named in its arguments does, so it cannot
+// promise anything on that tool's behalf.
+const CALL_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+function annotationsFor(tool: ToolDefinition) {
+  if (tool === DISCOVER_TOOL) return DISCOVER_ANNOTATIONS;
+  if (tool === CALL_TOOL) return CALL_ANNOTATIONS;
+  return TOOL_ANNOTATIONS;
+}
+
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 /**
@@ -86,7 +112,7 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
 
   const listTools = () => {
     const visible = discovery ? [DISCOVER_TOOL, CALL_TOOL, ...tools] : tools;
-    return visible.map((t) => ({ ...t, annotations: TOOL_ANNOTATIONS }));
+    return visible.map((t) => ({ ...t, annotations: annotationsFor(t) }));
   };
 
   const discover = async (args: Record<string, unknown>): Promise<string> => {

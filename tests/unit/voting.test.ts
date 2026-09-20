@@ -5,7 +5,6 @@ import {
   handleSearchVotes,
   handleGetVoteDetails,
   votingTools,
-  registerVotingTools,
   odsqlString,
 } from "../../src/modules/voting.js";
 import {
@@ -67,82 +66,6 @@ describe("votingTools definitions", () => {
     const props = votingTools[2].inputSchema.properties as Record<string, unknown>;
     expect(props).toHaveProperty("vote_title");
     expect(props).toHaveProperty("date");
-  });
-});
-
-// ── registerVotingTools ───────────────────────────────────────────────────────
-
-describe("registerVotingTools", () => {
-  it("registers all 3 tools on the server", () => {
-    const toolMock = vi.fn();
-    const fakeServer = { tool: toolMock };
-    registerVotingTools(fakeServer);
-    expect(toolMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("registers get_voting_results", () => {
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    const names = toolMock.mock.calls.map((c) => c[0]);
-    expect(names).toContain("get_voting_results");
-  });
-
-  it("registers search_votes", () => {
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    const names = toolMock.mock.calls.map((c) => c[0]);
-    expect(names).toContain("search_votes");
-  });
-
-  it("registers get_vote_details", () => {
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    const names = toolMock.mock.calls.map((c) => c[0]);
-    expect(names).toContain("get_vote_details");
-  });
-
-  it("handlers return MCP content array", async () => {
-    mockFetch(mockVotingRows);
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    // Get the handler for get_voting_results
-    const handler = toolMock.mock.calls[0][3] as (
-      p: Record<string, unknown>,
-    ) => Promise<{ content: Array<{ type: string; text: string }> }>;
-    const result = await handler({ limit: 2 });
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0].type).toBe("text");
-    expect(typeof result.content[0].text).toBe("string");
-  });
-});
-
-// ── registerVotingTools — search_votes and get_vote_details handlers ──────────
-
-describe("registerVotingTools — additional handlers", () => {
-  it("search_votes handler returns MCP content array", async () => {
-    mockFetch(mockVotingRows);
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    // search_votes is the second registered tool
-    const handler = toolMock.mock.calls[1][3] as (
-      p: Record<string, unknown>,
-    ) => Promise<{ content: Array<{ type: string; text: string }> }>;
-    const result = await handler({ query: "Mietrecht" });
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0].type).toBe("text");
-  });
-
-  it("get_vote_details handler returns MCP content array", async () => {
-    mockFetch(mockDetailsRows);
-    const toolMock = vi.fn();
-    registerVotingTools({ tool: toolMock });
-    // get_vote_details is the third registered tool
-    const handler = toolMock.mock.calls[2][3] as (
-      p: Record<string, unknown>,
-    ) => Promise<{ content: Array<{ type: string; text: string }> }>;
-    const result = await handler({ vote_title: "Nationalstrassen" });
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0].type).toBe("text");
   });
 });
 

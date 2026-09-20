@@ -69,6 +69,24 @@ describe("createServer (discovery mode)", () => {
     expect(client.getServerCapabilities()?.tools?.listChanged).toBe(true);
   });
 
+  it("does not mark the meta-tools read-only, but still does for data tools", async () => {
+    const { client } = await connect({ modules: resolveModules(new Set(["holidays"])), discovery: true });
+    const { tools } = await client.listTools();
+    const byName = new Map(tools.map((t) => [t.name, t.annotations]));
+
+    // swiss_discover loads modules and fires tools/list_changed
+    expect(byName.get("swiss_discover")?.readOnlyHint).toBe(false);
+    expect(byName.get("swiss_discover")?.idempotentHint).toBe(false);
+    // swiss_call inherits whatever the proxied tool does
+    expect(byName.get("swiss_call")?.readOnlyHint).toBe(false);
+    expect(byName.get("swiss_call")?.idempotentHint).toBe(false);
+
+    for (const tool of moduleRegistry.holidays.tools) {
+      expect(byName.get(tool.name)?.readOnlyHint).toBe(true);
+      expect(byName.get(tool.name)?.idempotentHint).toBe(true);
+    }
+  });
+
   it("swiss_discover without args returns the module catalog", async () => {
     const { client } = await connect({ modules: [], discovery: true });
     const catalog = JSON.parse(text(await client.callTool({ name: "swiss_discover", arguments: {} })));
