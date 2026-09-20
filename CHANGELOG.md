@@ -49,6 +49,11 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - SECURITY.md described a stdio-only tool that opens no port
 
 ### Fixed
+- ZEFIX `search_companies` sent the canton as `cantonAbbreviation` and the legal form as `legalFormCode`; the search endpoint knows neither field and quietly returned unfiltered results. It now resolves the canton to its registry-office ids (`registryOffices`) and the legal form to its numeric id (`legalForms`), and rejects values it cannot resolve
+- `list_legal_forms` returned invented `0101`-style codes that `search_companies` never accepted. It now returns the live ZEFIX list (`legalForm.json`) with the ids the search really filters on — `3` = AG, `4` = GmbH
+- `search_companies_by_address` sent the address as the company name, so it was a name search wearing an address label. ZEFIX has no street-address search at all, so the tool is now `search_companies_by_locality`: it resolves a commune or town (accent-insensitive, alternate names included) to legal-seat ids. A street address is rejected with an error that explains why
+- `get_company` interpolated `ehraid` straight into the URL path; it is now checked for digits only
+- `get_company` returned the whole SOGC journal (60 KB for Migros alone); capped at the 10 newest entries plus a `shabPubTotal` count. Search results are slimmed and carry the canton and legal-form label
 - Sessions with an open event stream are no longer closed by the idle sweeper
 - `search_places` advertised `type: "featuresearch"`, which always returned HTTP 400 because the tool sends no layer; the parameter is gone
 - User-Agent and the existenz.ch `app` parameter still said `mcp-swiss`

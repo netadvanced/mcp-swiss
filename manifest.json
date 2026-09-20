@@ -105,8 +105,8 @@
       "description": "Full company details by ZEFIX ehraid (from search_companies)"
     },
     {
-      "name": "search_companies_by_address",
-      "description": "Companies registered at an address or locality"
+      "name": "search_companies_by_locality",
+      "description": "Companies whose registered seat is in a commune/town. ZEFIX has no street-address search"
     },
     {
       "name": "list_cantons",
@@ -114,7 +114,7 @@
     },
     {
       "name": "list_legal_forms",
-      "description": "List company legal forms (AG, GmbH, ...) with codes"
+      "description": "List company legal forms (AG, GmbH, ...) with the ids used by search_companies"
     },
     {
       "name": "get_public_holidays",

@@ -238,7 +238,7 @@ describe('MCP protocol: tools/list', () => {
     const names = result.tools.map((t) => t.name);
     expect(names).toContain('search_companies');
     expect(names).toContain('get_company');
-    expect(names).toContain('search_companies_by_address');
+    expect(names).toContain('search_companies_by_locality');
     expect(names).toContain('list_cantons');
     expect(names).toContain('list_legal_forms');
   });
@@ -282,22 +282,22 @@ describe('MCP protocol: tools/call', () => {
     expect(cantons).toHaveLength(26);
   });
 
-  it('list_legal_forms returns AG and GmbH', async () => {
+  // list_legal_forms now reads the live ZEFIX list, so it belongs in the
+  // integration suite. get_company rejects a bad ehraid before any request.
+  it('get_company rejects a non-numeric ehraid without calling out', async () => {
     const response = await sendMcpRequest({
       jsonrpc: '2.0',
       id: 12,
       method: 'tools/call',
       params: {
-        name: 'list_legal_forms',
-        arguments: {},
+        name: 'get_company',
+        arguments: { ehraid: 'CHE-105.829.940' },
       },
     });
 
-    const result = response.result as { content: Array<{ type: string; text: string }> };
-    const forms = JSON.parse(result.content[0].text);
-    const names = forms.map((f: { name: string }) => f.name).join(' ');
-    expect(names).toContain('AG');
-    expect(names).toContain('GmbH');
+    const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Invalid ehraid');
   });
 
   it('unknown tool returns isError:true response', async () => {

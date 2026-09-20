@@ -441,9 +441,9 @@ Once connected, try asking your AI:
 |------|-------------|
 | `search_companies` | Search by name, canton, legal form |
 | `get_company` | Full company details by ZEFIX `ehraid` |
-| `search_companies_by_address` | Companies registered at an address |
+| `search_companies_by_locality` | Companies with their registered seat in a commune |
 | `list_cantons` | All 26 Swiss cantons |
-| `list_legal_forms` | AG, GmbH, and all Swiss legal forms |
+| `list_legal_forms` | AG, GmbH, and all Swiss legal forms with their ZEFIX ids |
 
 ### 🎄 Holidays (3 tools)
 
