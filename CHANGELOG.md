@@ -37,6 +37,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - The CI `npm audit` step had `continue-on-error: true`, so it could never fail the build. It now fails on high and critical advisories.
 - `get_dams_by_canton` built its candidate list from the geo.admin `find` endpoint, which stops at 201 rows. The layer holds 225, so 24 dams from "Le Chalet" onwards were never returned — Zeuzier, Vieux Emosson, Zervreila, Verbois, Wettingen and the rest. The list is now paged off the `identify` endpoint, and a `limit` (up to 100) makes cantons like VS (54 dams) and GR (45) fully reachable.
 - `get_rent_index` hard-coded the CPI row count at 515 to compute "the latest N months", so the window drifted every time the source gained a month, and the error text advertised a fixed "1982–2025". Both the window and the reported coverage now come from the response, and a year lookup uses the store's own filter instead of a computed offset.
+- The NABEL station list was missing Jungfraujoch (JUN) and Beromünster (BRM). It now holds all 16 stations and merges in any code the geo.admin.ch layer gains later, so `get_air_quality` no longer rejects a real station.
+- `get_recent_earthquakes` sent no bounding box and no cap on `limit`: a year at magnitude 0 is ~2200 events and half a megabyte. It now asks for the Swiss box, caps the count at 100 and says when more events match.
+- The ZEFIX reference lists and the postcode register were cached for the life of the process and never refreshed, and concurrent first calls each started their own download. Both now expire (1 h / 24 h) and share one in-flight request.
+- The postcode register's ZIP was inflated with no output limit. Decompression is capped at 32 MB and fails with a clear message.
+- Dependabot auto-merged semver-minor bumps of `@modelcontextprotocol/sdk`, the one runtime dependency. Its bumps now get their own PR and a reviewer; dev dependencies and actions still auto-merge.
+- Removed `mcp-manifest.json`, a stale copy of `server.json` still claiming v0.1.4 that nothing read, plus the upstream-only `test_suite.js`, `run_tests.sh` and `scripts/qa-per-tool.sh`, which pointed at `/home/vikram` and tools that no longer exist.
+- The bug-report template offered a 22-entry tool dropdown from v0.1.0 and Node 18/20. Tool and module are free text now, and the Node list matches what we support.
 
 ## [0.9.0] - 2026-09-19
 
@@ -176,5 +183,9 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - Geodata identify: corrected path to `/all/MapServer/identify` with WGS84 coordinates directly
 - ESLint config: renamed to `.mjs` extension (ESM import requires explicit module type)
 
-[Unreleased]: https://github.com/vikramgorla/mcp-swiss/compare/v0.1.0...HEAD
+Versions 0.2.0 to 0.8.0 were released upstream; their notes live in
+[vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss/releases).
+
+[Unreleased]: https://github.com/netadvanced/mcp-swiss-ng/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/netadvanced/mcp-swiss-ng/releases/tag/v0.9.0
 [0.1.0]: https://github.com/vikramgorla/mcp-swiss/releases/tag/v0.1.0

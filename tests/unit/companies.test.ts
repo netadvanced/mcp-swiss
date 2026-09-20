@@ -363,6 +363,25 @@ describe('list_legal_forms', () => {
     const calls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/legalForm.json'));
     expect(calls).toHaveLength(1);
   });
+
+  it('two concurrent calls fetch the list once', async () => {
+    const fetchMock = mockFetch(mockSearchResponse);
+    await Promise.all([
+      handleCompanies('list_legal_forms', {}),
+      handleCompanies('list_legal_forms', {}),
+    ]);
+    const calls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/legalForm.json'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('retries after a failed load instead of caching the failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    await expect(handleCompanies('list_legal_forms', {})).rejects.toThrow();
+    const fetchMock = mockFetch(mockSearchResponse);
+    const result = JSON.parse(await handleCompanies('list_legal_forms', {}));
+    expect(result.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalled();
+  });
 });
 
 // ── unknown tool ──────────────────────────────────────────────────────────────

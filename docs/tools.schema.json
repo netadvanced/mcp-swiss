@@ -1481,6 +1481,7 @@
           },
           "limit": {
             "type": "number",
+            "description": "max 100",
             "default": 20
           },
           "include_blasts": {

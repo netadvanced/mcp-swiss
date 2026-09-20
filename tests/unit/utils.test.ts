@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
 import { swissToday } from '../../src/utils/date.js';
+import { cached } from '../../src/utils/cache.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -278,6 +279,8 @@ describe('httpFetch', () => {
   });
 });
 
+// ── swissToday ───────────────────────────────────────────────────────────────
+
 describe('swissToday', () => {
   it('returns the Europe/Zurich calendar date, not the UTC one', () => {
     // 00:30 CEST on 1 August is still 22:30 UTC on 31 July
@@ -286,5 +289,58 @@ describe('swissToday', () => {
     expect(swissToday(new Date('2026-01-01T01:30:00+01:00'))).toBe('2026-01-01');
     // just before midnight in Zurich, UTC is still on the same day
     expect(swissToday(new Date('2026-06-30T23:59:00+02:00'))).toBe('2026-06-30');
+  });
+});
+
+// ── cached ────────────────────────────────────────────────────────────────────
+
+describe('cached', () => {
+  it('loads once and serves the same value', async () => {
+    const load = vi.fn().mockResolvedValue('v1');
+    const value = cached(1000, load);
+    expect(await value.get()).toBe('v1');
+    expect(await value.get()).toBe('v1');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('concurrent callers share one load', async () => {
+    let release!: (v: string) => void;
+    const load = vi.fn(() => new Promise<string>((resolve) => { release = resolve; }));
+    const value = cached(1000, load);
+    const all = Promise.all([value.get(), value.get(), value.get()]);
+    release('v1');
+    expect(await all).toEqual(['v1', 'v1', 'v1']);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads once the TTL has passed', async () => {
+    vi.useFakeTimers();
+    try {
+      const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+      const value = cached(1000, load);
+      expect(await value.get()).toBe('v1');
+      vi.advanceTimersByTime(1001);
+      expect(await value.get()).toBe('v2');
+      expect(load).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not cache a rejection', async () => {
+    const load = vi.fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce('v1');
+    const value = cached(1000, load);
+    await expect(value.get()).rejects.toThrow('boom');
+    expect(await value.get()).toBe('v1');
+  });
+
+  it('clear() forces the next get to reload', async () => {
+    const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+    const value = cached(60_000, load);
+    expect(await value.get()).toBe('v1');
+    value.clear();
+    expect(await value.get()).toBe('v2');
   });
 });

@@ -191,3 +191,6 @@ function crc32(buf: Buffer): number {
 
 /** The register archive as served by data.geo.admin.ch. */
 export const mockPlzRegisterZip = (): Buffer => buildRegisterZip(mockPlzRegisterCsv);
+
+/** Compresses to a few KB, inflates past the module's 32 MB cap. */
+export const oversizedRegisterZip = (): Buffer => buildRegisterZip("A".repeat(33 * 1024 * 1024));

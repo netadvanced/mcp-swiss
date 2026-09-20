@@ -8,50 +8,21 @@ body:
       value: |
         Thanks for taking the time to report a bug. Please fill in as much detail as possible.
 
-  - type: dropdown
+  - type: input
     id: module
     attributes:
       label: Module affected
-      options:
-        - Transport
-        - Weather
-        - Geodata
-        - Companies
-        - Core/MCP
-        - Other
+      description: "Run `npx -y github:netadvanced/mcp-swiss-ng --list-modules` if you are not sure. Use \"core\" for transport/protocol problems."
+      placeholder: "e.g. transport"
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: tool
     attributes:
       label: Tool affected
-      options:
-        - search_stations
-        - get_connections
-        - get_departures
-        - get_arrivals
-        - get_nearby_stations
-        - get_weather
-        - list_weather_stations
-        - get_weather_history
-        - get_water_level
-        - list_hydro_stations
-        - get_water_history
-        - geocode
-        - reverse_geocode
-        - search_places
-        - get_solar_potential
-        - identify_location
-        - get_municipality
-        - search_companies
-        - get_company
-        - search_companies_by_address
-        - list_cantons
-        - list_legal_forms
-        - N/A (not tool-specific)
-    validations:
-      required: true
+      description: The tool name as the MCP client reports it. Leave empty if the problem is not tool-specific.
+      placeholder: "e.g. get_water_level"
 
   - type: textarea
     id: description
@@ -96,7 +67,7 @@ body:
     id: version
     attributes:
       label: mcp-swiss-ng version
-      placeholder: "e.g. 0.1.0 — run: npx -y github:netadvanced/mcp-swiss-ng --version"
+      placeholder: "e.g. 0.9.0 — run: npx -y github:netadvanced/mcp-swiss-ng --version"
     validations:
       required: true
 
@@ -105,9 +76,8 @@ body:
     attributes:
       label: Node.js version
       options:
-        - "18.x"
-        - "20.x"
         - "22.x"
+        - "24.x"
         - Other
     validations:
       required: true
