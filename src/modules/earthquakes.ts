@@ -285,21 +285,17 @@ async function handleGetEarthquakeDetails(
   const raw = await fetchFdsnText(url);
 
   if (!raw) {
-    return JSON.stringify({
-      error: "Event not found",
-      event_id: eventId,
-      source: "Swiss Seismological Service (SED), ETH Zürich",
-    });
+    throw new Error(
+      `No earthquake with event_id "${eventId}". Get an id from get_recent_earthquakes or search_earthquakes_by_location.`
+    );
   }
 
   const events = parseFdsnText(raw);
 
   if (events.length === 0) {
-    return JSON.stringify({
-      error: "Event not found or could not be parsed",
-      event_id: eventId,
-      source: "Swiss Seismological Service (SED), ETH Zürich",
-    });
+    throw new Error(
+      `Event "${eventId}" returned no parsable record from the SED service. Check the id with get_recent_earthquakes.`
+    );
   }
 
   return JSON.stringify({

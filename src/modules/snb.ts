@@ -234,15 +234,8 @@ async function handleGetExchangeRate(currency: string): Promise<string> {
 
   const entries = ratesMap.get(info.seriesId);
   if (!entries || entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No exchange rate data available",
-        currency: currency.toUpperCase(),
-        hint: "The SNB may not publish rates for this currency for recent periods.",
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -293,14 +286,8 @@ async function handleGetExchangeRateHistory(
   let entries = ratesMap.get(info.seriesId) ?? [];
 
   if (entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No historical data available",
-        currency: currency.toUpperCase(),
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -320,10 +307,13 @@ async function handleGetExchangeRateHistory(
   if (entries.length === 0) {
     return JSON.stringify(
       {
-        error: "No data in the specified date range",
-        currency: currency.toUpperCase(),
+        currency: info.code,
+        currencyName: info.name,
         from: from ?? null,
         to: to ?? null,
+        count: 0,
+        history: [],
+        note: "No monthly averages in that range. Dates are YYYY-MM.",
         source: "https://data.snb.ch",
       },
       null,

@@ -214,14 +214,10 @@ export async function handleEnergy(
       const observations = raw.observations as Array<Record<string, unknown>>;
 
       if (!observations.length) {
-        return JSON.stringify({
-          error: "No tariff data found",
-          municipality,
-          category,
-          year,
-          hint: "Check the municipality BFS number with search_municipality_energy. Not all municipalities have tariff data for every year.",
-          source: "https://www.strompreis.elcom.admin.ch",
-        }, null, 2);
+        throw new Error(
+          `No tariff data for municipality ${municipality}, category ${category}, year ${year}. ` +
+            "Check the BFS number with search_municipality_energy, or try another year."
+        );
       }
 
       // If multiple operators, return all (some municipalities served by multiple operators)
@@ -295,14 +291,10 @@ export async function handleEnergy(
       const observations = data.observations ?? [];
 
       if (!observations.length) {
-        return JSON.stringify({
-          error: "No tariff data found for the given municipalities",
-          municipalities,
-          category,
-          year,
-          hint: "Use search_municipality_energy to verify BFS numbers.",
-          source: "https://www.strompreis.elcom.admin.ch",
-        }, null, 2);
+        throw new Error(
+          `No tariff data for any of ${municipalities.join(", ")} (category ${category}, year ${year}). ` +
+            "Verify the BFS numbers with search_municipality_energy."
+        );
       }
 
       // Deduplicate by municipality (keep first/cheapest operator if multiple)

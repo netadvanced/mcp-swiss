@@ -1763,7 +1763,7 @@ No parameters required.
 ### Notes
 
 - Must be exactly 4 digits
-- Returns `found: false` if postcode is not in the official registry
+- Errors if the postcode is not in the official registry
 - Canton is identified via reverse-geocoding the PLZ centroid
 - Coordinates are the centroid of the PLZ area
 
