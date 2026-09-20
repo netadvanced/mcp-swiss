@@ -9,6 +9,7 @@ import {
   mockPlzRegisterZip,
   mockPlzRegisterCsv,
   buildRegisterZip,
+  oversizedRegisterZip,
 } from "../fixtures/post.js";
 
 // ── Mock helpers ─────────────────────────────────────────────────────────────
@@ -511,6 +512,32 @@ describe("list_postcodes_in_canton", () => {
     await expect(
       handlePost("list_postcodes_in_canton", { canton: "ZH" })
     ).rejects.toThrow("unexpected header");
+  });
+
+  it("refuses an archive that inflates past the size cap", async () => {
+    registerZip = oversizedRegisterZip();
+    mockFetch(mockEmptyResults);
+    await expect(
+      handlePost("list_postcodes_in_canton", { canton: "ZH" })
+    ).rejects.toThrow("32 MB decompression limit");
+  });
+
+  it("two concurrent calls download the register once", async () => {
+    const fetchMock = mockFetch(mockEmptyResults);
+    await Promise.all([
+      handlePost("list_postcodes_in_canton", { canton: "ZH" }),
+      handlePost("list_postcodes_in_canton", { canton: "BE" }),
+    ]);
+    const downloads = fetchMock.mock.calls.filter((c) => String(c[0]).includes("data.geo.admin.ch"));
+    expect(downloads).toHaveLength(1);
+  });
+
+  it("a later call reuses the cached register", async () => {
+    const fetchMock = mockFetch(mockEmptyResults);
+    await handlePost("list_postcodes_in_canton", { canton: "ZH" });
+    await handlePost("list_postcodes_in_canton", { canton: "BE" });
+    const downloads = fetchMock.mock.calls.filter((c) => String(c[0]).includes("data.geo.admin.ch"));
+    expect(downloads).toHaveLength(1);
   });
 });
 

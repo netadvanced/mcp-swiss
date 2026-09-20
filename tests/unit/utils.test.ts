@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
+import { cached } from '../../src/utils/cache.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -274,5 +275,58 @@ describe('httpFetch', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
 
     await expect(httpFetch('https://example.com/slow')).rejects.toThrow(/timed out after .* https:\/\/example\.com\/slow/);
+  });
+});
+
+// ── cached ────────────────────────────────────────────────────────────────────
+
+describe('cached', () => {
+  it('loads once and serves the same value', async () => {
+    const load = vi.fn().mockResolvedValue('v1');
+    const value = cached(1000, load);
+    expect(await value.get()).toBe('v1');
+    expect(await value.get()).toBe('v1');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('concurrent callers share one load', async () => {
+    let release!: (v: string) => void;
+    const load = vi.fn(() => new Promise<string>((resolve) => { release = resolve; }));
+    const value = cached(1000, load);
+    const all = Promise.all([value.get(), value.get(), value.get()]);
+    release('v1');
+    expect(await all).toEqual(['v1', 'v1', 'v1']);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads once the TTL has passed', async () => {
+    vi.useFakeTimers();
+    try {
+      const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+      const value = cached(1000, load);
+      expect(await value.get()).toBe('v1');
+      vi.advanceTimersByTime(1001);
+      expect(await value.get()).toBe('v2');
+      expect(load).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not cache a rejection', async () => {
+    const load = vi.fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce('v1');
+    const value = cached(1000, load);
+    await expect(value.get()).rejects.toThrow('boom');
+    expect(await value.get()).toBe('v1');
+  });
+
+  it('clear() forces the next get to reload', async () => {
+    const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+    const value = cached(60_000, load);
+    expect(await value.get()).toBe('v1');
+    value.clear();
+    expect(await value.get()).toBe('v2');
   });
 });

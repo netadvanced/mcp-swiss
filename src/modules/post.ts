@@ -1,5 +1,6 @@
 import { inflateRawSync } from "node:zlib";
 
+import { cached } from "../utils/cache.js";
 import { fetchBody, fetchJSON, buildUrl } from "../utils/http.js";
 
 const BASE = "https://api3.geo.admin.ch";
@@ -88,12 +89,29 @@ interface RegisterRow {
 
 // ── Register (cached per process) ────────────────────────────────────────────
 
-let registerCache: RegisterRow[] | null = null;
-let registerPending: Promise<RegisterRow[]> | null = null;
+// The register is republished monthly and the download is ~130 KB, so a day is
+// long enough to keep it out of the hot path and short enough that a server
+// left running for weeks picks up new postcodes.
+const REGISTER_TTL_MS = 24 * 60 * 60 * 1000;
 
-export function clearPostCache(): void {
-  registerCache = null;
-  registerPending = null;
+// The CSV is ~500 KB. 32 MB leaves room for the register to grow while keeping
+// a hostile or corrupt archive from inflating into the heap unbounded.
+const MAX_CSV_BYTES = 32 * 1024 * 1024;
+
+function tooLarge(): Error {
+  return new Error(
+    `PLZ register CSV exceeds the ${MAX_CSV_BYTES / (1024 * 1024)} MB decompression limit — refusing to load it`
+  );
+}
+
+/** zlib reports the cap as ERR_BUFFER_TOO_LARGE; say what actually happened. */
+function inflate(data: Buffer): Buffer {
+  try {
+    return inflateRawSync(data, { maxOutputLength: MAX_CSV_BYTES });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "ERR_BUFFER_TOO_LARGE") throw tooLarge();
+    throw err;
+  }
 }
 
 /** Read the first .csv entry out of a ZIP archive (stored or deflated). */
@@ -123,7 +141,8 @@ function readCsvFromZip(zip: Buffer): string {
       const start =
         localOffset + 30 + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
       const data = zip.subarray(start, start + compressedSize);
-      const raw = method === 0 ? data : inflateRawSync(data);
+      const raw = method === 0 ? data : inflate(data);
+      if (raw.length > MAX_CSV_BYTES) throw tooLarge();
       return raw.toString("utf8").replace(/^\uFEFF/, "");
     }
     p += 46 + nameLen + extraLen + commentLen;
@@ -164,19 +183,19 @@ function parseRegister(csv: string): RegisterRow[] {
   return rows;
 }
 
-async function loadRegister(): Promise<RegisterRow[]> {
-  if (registerCache) return registerCache;
-  registerPending ??= (async () => {
-    const zip = await fetchBody(PLZ_REGISTER_URL, { timeoutMs: 60_000 }, async (response) =>
-      Buffer.from(await response.arrayBuffer())
-    );
-    const rows = parseRegister(readCsvFromZip(zip));
-    registerCache = rows;
-    return rows;
-  })().finally(() => {
-    registerPending = null;
-  });
-  return registerPending;
+const register = cached(REGISTER_TTL_MS, async () => {
+  const zip = await fetchBody(PLZ_REGISTER_URL, { timeoutMs: 60_000 }, async (response) =>
+    Buffer.from(await response.arrayBuffer())
+  );
+  return parseRegister(readCsvFromZip(zip));
+});
+
+export function clearPostCache(): void {
+  register.clear();
+}
+
+function loadRegister(): Promise<RegisterRow[]> {
+  return register.get();
 }
 
 /** Canton holding most of a postcode's addresses, plus any others it reaches into. */
