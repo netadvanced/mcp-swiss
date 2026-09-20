@@ -704,13 +704,21 @@
     },
     {
       "name": "get_avalanche_bulletin",
-      "description": "SLF avalanche bulletin: links to today's PDF bulletin and interactive map plus the danger scale (no live danger levels). Published daily Oct–May",
+      "description": "Live SLF avalanche bulletin: danger level (1-5), avalanche problems with aspect and elevation, validity and advice text, for one warning region, a coordinate, or all of Switzerland. Outside the winter season it reports that no bulletin is in force",
       "inputSchema": {
         "type": "object",
         "properties": {
           "region": {
             "type": "string",
-            "description": "Region ID (e.g. CH-9) or name, from list_avalanche_regions. Omit for national overview"
+            "description": "EAWS region id (e.g. CH-7114) or name, see list_avalanche_regions"
+          },
+          "lat": {
+            "type": "number",
+            "description": "WGS84 latitude, with lon; alternative to region"
+          },
+          "lon": {
+            "type": "number",
+            "description": "WGS84 longitude, with lat"
           },
           "language": {
             "type": "string",
@@ -721,16 +729,24 @@
               "it"
             ],
             "default": "en"
+          },
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD or ISO timestamp for an archived bulletin; omit for the current one"
           }
         }
       }
     },
     {
       "name": "list_avalanche_regions",
-      "description": "List SLF avalanche warning regions (IDs for get_avalanche_bulletin)",
+      "description": "The 135 SLF/EAWS avalanche warning regions (id, name, canton) for get_avalanche_bulletin",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "search": {
+            "type": "string",
+            "description": "Match on region id or name"
+          },
           "canton": {
             "type": "string",
             "description": "Canton code, e.g. GR"

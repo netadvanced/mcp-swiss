@@ -31,7 +31,7 @@
 🏢 Companies    — ZEFIX federal registry, all 700K+ Swiss companies
 🎄 Holidays     — Swiss public & school holidays by canton
 🏛️ Parliament   — Bills, votes, members, speeches, cantonal affairs (OpenParlData.ch)
-🏔️ Avalanche    — SLF danger bulletins and warning regions
+🏔️ Avalanche    — SLF bulletin: danger levels, problems, warning regions
 💨 Air Quality  — NABEL stations, Swiss legal limits (LRV)
 📮 Swiss Post   — Postcode lookup and parcel tracking
 ⚡ Energy       — Electricity tariffs by municipality (ElCom)
@@ -390,7 +390,7 @@ Once connected, try asking your AI:
 | *"Plan my Saturday: train to Interlaken, check weather"* | Multiple tools chained |
 | *"Is next Monday a holiday in Zürich?"* | `get_public_holidays` |
 | *"What did the Swiss parliament vote on recently?"* | `search_parliament_business` |
-| *"What's the avalanche danger level in the Bernese Alps?"* | `get_avalanche_bulletin` |
+| *"What's the avalanche danger above Davos today?"* | `get_avalanche_bulletin` |
 | *"What's the postcode for Zermatt?"* | `search_postcode` |
 | *"Track my Swiss Post parcel 99.12.345678.12345678"* | `track_parcel` |
 | *"How much does electricity cost in Zürich vs Basel?"* | `search_municipality_energy` + `compare_electricity_tariffs` |
@@ -471,8 +471,8 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_avalanche_bulletin` | Current avalanche bulletin with danger levels and PDF links |
-| `list_avalanche_regions` | All 22 Swiss avalanche warning regions |
+| `get_avalanche_bulletin` | Danger level, avalanche problems and advice for a region or coordinate |
+| `list_avalanche_regions` | The 135 SLF/EAWS warning regions with id, name and canton |
 
 ### 💨 Air Quality (2 tools)
 
@@ -614,7 +614,7 @@ All official Swiss open data — no API keys required:
 | [zefix.admin.ch](https://www.zefix.admin.ch) | Federal company registry | [Swagger](https://www.zefix.admin.ch/ZefixREST/swagger-ui.html) |
 | [openholidaysapi.org](https://openholidaysapi.org) | Swiss public & school holidays | [API docs](https://openholidaysapi.org/swagger) |
 | [OpenParlData.ch](https://openparldata.ch) | Swiss Parliament data — federal & cantonal (CC BY 4.0) | [API docs](https://api.openparldata.ch/documentation) |
-| [whiterisk.ch](https://whiterisk.ch) / [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletins | [SLF](https://www.slf.ch/en/avalanche-bulletin-and-snow-situation.html) |
+| [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletin, EAWS CAAMLv6 (CC BY 4.0) | [API docs](https://aws.slf.ch/api/bulletin/caaml) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — BAFU/NABEL | Swiss air quality monitoring stations | [BAFU NABEL](https://www.bafu.admin.ch/bafu/en/home/topics/air/state/data/nabel.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss postcodes (Amtliches Ortschaftenverzeichnis) | [geo.admin.ch](https://api3.geo.admin.ch/api/doc.html) |
 | [strompreis.elcom.admin.ch](https://strompreis.elcom.admin.ch) | ElCom electricity tariffs by municipality | [ElCom](https://www.elcom.admin.ch/elcom/en/home.html) |

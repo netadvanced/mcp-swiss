@@ -166,11 +166,11 @@
     },
     {
       "name": "get_avalanche_bulletin",
-      "description": "SLF avalanche bulletin: links to today's PDF bulletin and interactive map plus the danger scale (no live danger levels). Published daily Oct–May"
+      "description": "Live SLF avalanche bulletin: danger level (1-5), avalanche problems with aspect and elevation, validity and advice text, for one warning region, a coordinate, or all of Switzerland. Outside the winter season it reports that no bulletin is in force"
     },
     {
       "name": "list_avalanche_regions",
-      "description": "List SLF avalanche warning regions (IDs for get_avalanche_bulletin)"
+      "description": "The 135 SLF/EAWS avalanche warning regions (id, name, canton) for get_avalanche_bulletin"
     },
     {
       "name": "list_air_quality_stations",

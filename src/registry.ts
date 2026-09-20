@@ -46,7 +46,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
   companies:   { description: "Zefix commercial register: companies, legal forms",                       tools: companiesTools,   handler: handleCompanies },
   holidays:    { description: "Public and school holidays by canton",                                    tools: holidaysTools,    handler: handleHolidays },
   parliament:  { description: "Federal and cantonal parliament: affairs, members, votes, speeches",      tools: parliamentTools,  handler: handleParliament },
-  avalanche:   { description: "SLF avalanche bulletin and regions",                                      tools: avalancheTools,   handler: handleAvalanche as ToolHandler },
+  avalanche:   { description: "SLF avalanche bulletin: danger levels, problems, warning regions",        tools: avalancheTools,   handler: handleAvalanche },
   airquality:  { description: "NABEL air-quality stations and measurements",                             tools: airqualityTools,  handler: handleAirQuality },
   post:        { description: "Swiss Post postcodes and parcel tracking",                                tools: postTools,        handler: handlePost },
   energy:      { description: "ElCom electricity tariffs by municipality",                               tools: energyTools,      handler: handleEnergy },
