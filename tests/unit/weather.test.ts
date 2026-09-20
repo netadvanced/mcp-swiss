@@ -119,8 +119,10 @@ describe('get_weather_history', () => {
       end_date: '2026-03-07',
     });
     const calledUrl = fetchMock.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('startdt=2026-03-01');
-    expect(calledUrl).toContain('enddt=2026-03-07');
+    // startdt/enddt are ignored by api.existenz.ch, which then returns the last 24 h
+    expect(calledUrl).toContain('startdate=2026-03-01');
+    expect(calledUrl).toContain('enddate=2026-03-07');
+    expect(calledUrl).not.toContain('startdt=');
   });
 });
 
@@ -192,8 +194,10 @@ describe('get_water_history', () => {
       end_date: '2026-03-07',
     });
     const calledUrl = fetchMock.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('startdt=2026-03-01');
-    expect(calledUrl).toContain('enddt=2026-03-07');
+    // startdt/enddt are ignored by api.existenz.ch, which then returns the last 24 h
+    expect(calledUrl).toContain('startdate=2026-03-01');
+    expect(calledUrl).toContain('enddate=2026-03-07');
+    expect(calledUrl).not.toContain('startdt=');
   });
 });
 
@@ -281,12 +285,14 @@ describe('fallback when payload is not an array', () => {
     expect(result.payload).toEqual({ unexpected: 'format' });
   });
 
-  it('get_weather_history falls back to raw JSON when payload is not array', async () => {
+  it('get_weather_history explains an empty payload (32-day window)', async () => {
     mockFetch({ source: 'test', payload: 'not-an-array' });
     const result = JSON.parse(await handleWeather('get_weather_history', {
       station: 'BER', start_date: '2026-01-01', end_date: '2026-01-02',
     }));
-    expect(result.payload).toBe('not-an-array');
+    expect(result.count).toBe(0);
+    expect(result.note).toMatch(/32 days/);
+    expect(result.note).toContain('2026-01-01');
   });
 
   it('get_water_level falls back to raw JSON when payload is not array', async () => {
@@ -295,12 +301,13 @@ describe('fallback when payload is not an array', () => {
     expect(result.payload).toBeNull();
   });
 
-  it('get_water_history falls back to raw JSON when payload is not array', async () => {
+  it('get_water_history explains an empty payload (32-day window)', async () => {
     mockFetch({ source: 'test', payload: {} });
     const result = JSON.parse(await handleWeather('get_water_history', {
       station: '2135', start_date: '2026-01-01', end_date: '2026-01-02',
     }));
-    expect(result.payload).toEqual({});
+    expect(result.count).toBe(0);
+    expect(result.note).toMatch(/32 days/);
   });
 });
 

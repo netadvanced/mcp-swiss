@@ -821,26 +821,27 @@ No parameters required.
 
 ## Companies Module
 
-**Base API:** `https://www.zefix.admin.ch/ZefixREST/api/v1`  
-**Docs:** https://www.zefix.admin.ch/ZefixREST/swagger-ui.html  
-**Data source:** Federal Commercial Register (ZEFIX)  
-**Auth:** None required for search; some endpoints return 403
+**Base API:** `https://www.zefix.admin.ch/ZefixREST/api/v1`
+**Data source:** Federal Commercial Register (ZEFIX)
+**Auth:** None. This is the backend of the ZEFIX web app; the documented `ZefixPublicREST` API (OpenAPI at `/ZefixPublicREST/v3/api-docs`) needs credentials and answers 401 without them.
+
+The module reads three static reference lists once per process and caches them: `legalForm.json`, `registerOffice.json` and `community.json`. They turn a canton code into registry-office ids and a commune name into legal-seat ids, which is what the search endpoint actually filters on.
 
 ---
 
 ## `search_companies`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`  
-**Description:** Search the Swiss federal company registry (ZEFIX) by name, canton, or legal form. Returns up to 700K+ registered companies.
+**Module:** Companies
+**API source:** `POST https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`
+**Description:** Search the Swiss federal company registry (ZEFIX) by name, canton and legal form.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| name | string | ✅ | Company name or partial name to search |
-| canton | string | ⬜ | Canton abbreviation (e.g. `ZH`, `BE`, `GE`, `ZG`) |
-| legal_form | string | ⬜ | Legal form code (e.g. `0106`=GmbH, `0105`=AG) |
+| name | string | ✅ | Company name, at least 3 characters. `*` is a wildcard (`Migro*`) |
+| canton | string | ⬜ | One of the 26 canton codes (e.g. `ZH`, `BE`, `GE`, `ZG`) |
+| legal_form | number | ⬜ | Legal form id, e.g. `3` = AG, `4` = GmbH (see `list_legal_forms`) |
 | limit | number | ⬜ | Maximum results (default: 20) |
 
 ### Output
@@ -849,15 +850,17 @@ No parameters required.
 {
   "companies": [
     {
+      "name": "Migros-Genossenschafts-Bund",
       "ehraid": 119283,
-      "name": "Nestlé S.A.",
-      "uid": "CHE-116.281.788",
-      "legalSeat": "Vevey",
-      "legalFormCode": "0105",
-      "cantonAbbreviation": "VD",
-      "sogcDate": "2024-01-15",
+      "uid": "CHE-105.829.940",
+      "legalSeat": "Zürich",
+      "canton": "ZH",
+      "legalFormId": 5,
+      "legalForm": "Gen",
+      "status": "EXISTIEREND",
+      "shabDate": "2026-09-07",
       "deleteDate": null,
-      "status": "ACTIVE"
+      "excerpt": "https://zh.chregister.ch/cr-portal/auszug/auszug.xhtml?uid=CHE-105.829.940"
     }
   ],
   "hasMoreResults": false
@@ -866,105 +869,93 @@ No parameters required.
 
 ### Notes
 
-- `ehraid` is the **ZEFIX internal integer ID** — use this with `get_company` (NOT the CHE-xxx.xxx.xxx UID)
-- `uid` is the official UID (CHE-xxx.xxx.xxx) for reference only
-- `deleteDate` is non-null for dissolved/deleted companies
-- Legal form codes: `0101`=Sole proprietorship, `0103`=General partnership, `0104`=LP, `0105`=AG, `0106`=GmbH, `0107`=Cooperative, `0108`=Association, `0109`=Foundation
-- Use `canton` to narrow results (e.g. `ZG` for Zug crypto/fintech scene)
+- `ehraid` is the **ZEFIX internal integer id** — use this with `get_company` (NOT the CHE-xxx.xxx.xxx UID)
+- The search body sends `registryOffices` for the canton and `legalForms` for the legal form. Valais is the only canton with more than one registry office (three), and all of them are sent.
+- ZEFIX falls back to an inexact match when the exact name finds nothing, so `Banque` can also return `Bank …`
+- An unknown canton or legal form id is rejected with an error rather than silently ignored
+- `deleteDate` is non-null for dissolved companies
+- No results comes back from ZEFIX as HTTP 200 with an error envelope, or as a 404; both become `{"companies": [], "hasMoreResults": false}`
 
 ---
 
 ## `get_company`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/{ehraid}.json`  
-**Description:** Get full details of a Swiss company by its ZEFIX internal ID (`ehraid`). Includes registered address, purpose, capital, directors, and journal entries.
+**Module:** Companies
+**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/{ehraid}.json`
+**Description:** Full details of a Swiss company by its ZEFIX internal id (`ehraid`): registered address, purpose, branches, auditors and the most recent journal entries.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| ehraid | number | ✅ | ZEFIX internal integer ID (e.g. `119283`). **Get this from `search_companies`** — NOT the CHE-xxx.xxx.xxx UID format. |
+| ehraid | number | ✅ | ZEFIX internal integer id (e.g. `119283`). **Get this from `search_companies`** — NOT the CHE-xxx.xxx.xxx UID format. Digits only; anything else is rejected before the request is built. |
 
 ### Output
 
 ```json
 {
+  "name": "Migros-Genossenschafts-Bund",
   "ehraid": 119283,
-  "name": "Nestlé S.A.",
-  "uid": "CHE-116.281.788",
-  "legalFormCode": "0105",
-  "legalSeat": "Vevey",
-  "cantonAbbreviation": "VD",
+  "uidFormatted": "CHE-105.829.940",
+  "legalSeat": "Zürich",
+  "legalSeatId": 261,
+  "registerOfficeId": 20,
+  "legalFormId": 5,
+  "status": "EXISTIEREND",
   "address": {
-    "street": "Avenue Nestlé",
-    "houseNumber": "55",
-    "swissZipCode": "1800",
-    "town": "Vevey"
+    "street": "Limmatstrasse",
+    "houseNumber": "152",
+    "swissZipCode": "8005",
+    "town": "Zürich",
+    "country": "CH"
   },
-  "purpose": "Société holding. La Société a pour but la gestion d'un groupe international...",
-  "capitalNominal": 322000000,
-  "capitalCurrency": "CHF",
-  "status": "ACTIVE",
-  "sogcDate": "2024-01-15",
-  "deleteDate": null,
-  "shabDate": "2024-01-15"
+  "purpose": "Im Sinne des Sozialen Kapitals …",
+  "canton": "ZH",
+  "legalForm": "Cooperative",
+  "shabPub": [],
+  "shabPubTotal": 75
 }
 ```
 
 ### Notes
 
 - ⚠️ **Use `ehraid` (integer), NOT the CHE-xxx.xxx.xxx UID format**
-- `ehraid` is returned by `search_companies` in the `ehraid` field
-- `purpose` is the official registered purpose from the commercial register
-- `capitalNominal` is share capital in CHF (for AG/GmbH)
-- For dissolved companies, `deleteDate` and `status: "DELETED"` are set
+- `shabPub` (the SOGC journal) is capped at the 10 newest entries; `shabPubTotal` is the real count. Migros' full list alone is 60 KB.
+- The address field for the town is `town`, not `city`
+- For dissolved companies, `deleteDate` and a non-`EXISTIEREND` status are set
 
 ---
 
-## `search_companies_by_address`
+## `search_companies_by_locality`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`  
-**Description:** Search Swiss companies registered at a specific address, street, or locality.
+**Module:** Companies
+**API source:** `POST https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`
+**Description:** Companies whose registered seat is in a given commune or town.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| address | string | ✅ | Address, street name, or locality to search |
+| locality | string | ✅ | Commune or town name, e.g. `Zug`, `Lausanne`. Case- and accent-insensitive, and alternate names (`Zurigo`, `Losanna`) work. |
+| name | string | ⬜ | Optional company name filter, at least 3 characters |
 | limit | number | ⬜ | Maximum results (default: 20) |
 
 ### Output
 
-```json
-{
-  "companies": [
-    {
-      "ehraid": 203847,
-      "name": "Crypto Valley AG",
-      "uid": "CHE-123.456.789",
-      "legalSeat": "Zug",
-      "cantonAbbreviation": "ZG",
-      "status": "ACTIVE"
-    }
-  ],
-  "hasMoreResults": true
-}
-```
+Same shape as `search_companies`.
 
 ### Notes
 
-- Uses ZEFIX full-text search on the `name` field (which also matches address components in some cases)
-- For precise address filtering, use `search_companies` with `canton` to narrow down
-- `hasMoreResults: true` indicates more companies match than the limit
+- **ZEFIX has no street-address search.** Neither the internal search endpoint nor the documented `CompanySearchQuery` of the public API has an address field; the only geographic filters are canton, registry district and legal seat (commune). This tool resolves the locality to commune ids via `community.json` and sends them as `legalSeats`.
+- A street address (`Bahnhofstrasse 1`) matches no commune and is rejected with an error that says so
+- A commune name shared by several cantons (e.g. `Oberdorf`) searches all of them
 
 ---
 
 ## `list_cantons`
 
-**Module:** Companies  
-**API source:** Hardcoded (ZEFIX `/cantons` endpoint returns 403)  
+**Module:** Companies
+**API source:** Hardcoded (the ZEFIX `/cantons` endpoint returns 403)
 **Description:** List all 26 Swiss cantons with their official abbreviation codes.
 
 ### Input
@@ -976,30 +967,6 @@ No parameters required.
 ```json
 [
   { "code": "AG", "name": "Aargau" },
-  { "code": "AI", "name": "Appenzell Innerrhoden" },
-  { "code": "AR", "name": "Appenzell Ausserrhoden" },
-  { "code": "BE", "name": "Bern" },
-  { "code": "BL", "name": "Basel-Landschaft" },
-  { "code": "BS", "name": "Basel-Stadt" },
-  { "code": "FR", "name": "Fribourg" },
-  { "code": "GE", "name": "Geneva" },
-  { "code": "GL", "name": "Glarus" },
-  { "code": "GR", "name": "Graubünden" },
-  { "code": "JU", "name": "Jura" },
-  { "code": "LU", "name": "Lucerne" },
-  { "code": "NE", "name": "Neuchâtel" },
-  { "code": "NW", "name": "Nidwalden" },
-  { "code": "OW", "name": "Obwalden" },
-  { "code": "SG", "name": "St. Gallen" },
-  { "code": "SH", "name": "Schaffhausen" },
-  { "code": "SO", "name": "Solothurn" },
-  { "code": "SZ", "name": "Schwyz" },
-  { "code": "TG", "name": "Thurgau" },
-  { "code": "TI", "name": "Ticino" },
-  { "code": "UR", "name": "Uri" },
-  { "code": "VD", "name": "Vaud" },
-  { "code": "VS", "name": "Valais" },
-  { "code": "ZG", "name": "Zug" },
   { "code": "ZH", "name": "Zürich" }
 ]
 ```
@@ -1007,16 +974,15 @@ No parameters required.
 ### Notes
 
 - Returns hardcoded data — the ZEFIX `/cantons` API endpoint returns HTTP 403
-- Use `code` values with `search_companies` `canton` parameter
-- All 26 cantons included (full/half cantons treated as separate entries)
+- Use `code` values for the `search_companies` `canton` parameter
 
 ---
 
 ## `list_legal_forms`
 
-**Module:** Companies  
-**API source:** Hardcoded (ZEFIX `/legalForms` endpoint returns 403)  
-**Description:** List all Swiss company legal forms (AG, GmbH, Verein, Stiftung, etc.) with their numeric codes.
+**Module:** Companies
+**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/legalForm.json`
+**Description:** List the Swiss company legal forms with the ids `search_companies` accepts.
 
 ### Input
 
@@ -1026,25 +992,18 @@ No parameters required.
 
 ```json
 [
-  { "code": "0101", "name": "Einzelunternehmen", "nameEn": "Sole proprietorship" },
-  { "code": "0103", "name": "Kollektivgesellschaft", "nameEn": "General partnership" },
-  { "code": "0104", "name": "Kommanditgesellschaft", "nameEn": "Limited partnership" },
-  { "code": "0105", "name": "Aktiengesellschaft (AG)", "nameEn": "Corporation (AG)" },
-  { "code": "0106", "name": "Gesellschaft mit beschränkter Haftung (GmbH)", "nameEn": "Limited liability company (GmbH)" },
-  { "code": "0107", "name": "Genossenschaft", "nameEn": "Cooperative" },
-  { "code": "0108", "name": "Verein", "nameEn": "Association" },
-  { "code": "0109", "name": "Stiftung", "nameEn": "Foundation" },
-  { "code": "0110", "name": "Kommanditaktiengesellschaft", "nameEn": "Partnership limited by shares" },
-  { "code": "0113", "name": "Filiale ausländischer Gesellschaft", "nameEn": "Branch of foreign company" },
-  { "code": "0114", "name": "Institut des öffentlichen Rechts", "nameEn": "Public law institution" }
+  { "id": 1, "abbr": "EIU", "name": "Einzelunternehmen", "nameEn": "Sole proprietorship" },
+  { "id": 3, "abbr": "AG", "name": "Aktiengesellschaft", "nameEn": "Corporation" },
+  { "id": 4, "abbr": "GmbH", "name": "Gesellschaft mit beschränkter Haftung", "nameEn": "Limited Liability Company" },
+  { "id": 5, "abbr": "Gen", "name": "Genossenschaft", "nameEn": "Cooperative" }
 ]
 ```
 
 ### Notes
 
-- Returns hardcoded data — the ZEFIX `/legalForms` API endpoint returns HTTP 403
-- Use `code` values with `search_companies` `legal_form` parameter
-- Most common: `0105` (AG) and `0106` (GmbH) make up the majority of registered companies
+- Live list from ZEFIX, 18 forms. The ids are the ones the search endpoint filters on — the eCH-0097 codes (`0101`, `0106`, …) are not accepted here.
+- Most common: `3` (AG) and `4` (GmbH)
+- The placeholder form with id `0` ("unknown") is dropped
 
 ---
 
@@ -2344,14 +2303,15 @@ Get trail closures near given coordinates.
 
 ### `get_property_price_index`
 
-Swiss property price index from BFS Immo-Monitoring.
+Swiss residential property price index (IMPI) from BFS, quarterly from 2017-Q1, base Q4 2019 = 100. Switzerland as a whole; the index is not broken down by canton.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation to filter (e.g. 'ZH') |
-| property_type | string | ❌ | 'apartment', 'house', or 'all' (default: 'all') |
+| type | string | ❌ | 'all', 'houses' or 'apartments' (default: 'all') |
+| from | string | ❌ | Inclusive start, e.g. '2020Q1' or '2020' |
+| to | string | ❌ | Inclusive end, e.g. '2024Q4' or '2024' |
 
 ---
 

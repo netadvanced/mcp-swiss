@@ -74,13 +74,13 @@ export const weatherTools = [
   },
   {
     name: "get_weather_history",
-    description: "Historical weather readings for a MeteoSwiss station over a date range",
+    description: "Historical weather readings for a MeteoSwiss station. Only the last 32 days are available",
     inputSchema: {
       type: "object",
       required: ["station", "start_date", "end_date"],
       properties: {
         station: { type: "string", description: "Station code, e.g. BER" },
-        start_date: { type: "string", description: "YYYY-MM-DD" },
+        start_date: { type: "string", description: "YYYY-MM-DD, within the last 32 days" },
         end_date: { type: "string", description: "YYYY-MM-DD" },
       },
     },
@@ -106,13 +106,13 @@ export const weatherTools = [
   },
   {
     name: "get_water_history",
-    description: "Historical river/lake levels for a BAFU hydro station over a date range",
+    description: "Historical river/lake levels for a BAFU hydro station. Only the last 32 days are available",
     inputSchema: {
       type: "object",
       required: ["station", "start_date", "end_date"],
       properties: {
         station: { type: "string", description: "Hydro station ID" },
-        start_date: { type: "string", description: "YYYY-MM-DD" },
+        start_date: { type: "string", description: "YYYY-MM-DD, within the last 32 days" },
         end_date: { type: "string", description: "YYYY-MM-DD" },
       },
     },
@@ -159,6 +159,19 @@ function compactHydroStations(payload: Record<string, StationEntry>): Record<str
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 
+const HISTORY_WINDOW_DAYS = 32;
+
+/** The upstream archive only holds ~32 days; older ranges come back empty. */
+function historyResult(station: unknown, records: unknown[], startDate: unknown): string {
+  const out: Record<string, unknown> = { station, count: records.length, data: records };
+  if (records.length === 0) {
+    out.note = `No readings. api.existenz.ch keeps only the last ${HISTORY_WINDOW_DAYS} days${
+      typeof startDate === "string" ? ` (requested from ${startDate})` : ""
+    }; for older data use the MeteoSwiss/BAFU open-data archives.`;
+  }
+  return JSON.stringify(out);
+}
+
 export async function handleWeather(name: string, args: Record<string, unknown>): Promise<string> {
   switch (name) {
     case "get_weather": {
@@ -197,18 +210,17 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     case "get_weather_history": {
       const url = buildUrl(`${BASE}/smn/daterange`, {
         locations: args.station as string,
-        startdt: args.start_date as string,
-        enddt: args.end_date as string,
+        startdate: args.start_date as string,
+        enddate: args.end_date as string,
         app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
       if (Array.isArray(payload)) {
-        const records = extractReadings(payload);
-        return JSON.stringify({ station: args.station, count: records.length, data: records });
+        return historyResult(args.station, extractReadings(payload), args.start_date);
       }
-      return JSON.stringify(data, null, 2);
+      return historyResult(args.station, [], args.start_date);
     }
 
     case "get_water_level": {
@@ -237,18 +249,17 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     case "get_water_history": {
       const url = buildUrl(`${BASE}/hydro/daterange`, {
         locations: args.station as string,
-        startdt: args.start_date as string,
-        enddt: args.end_date as string,
+        startdate: args.start_date as string,
+        enddate: args.end_date as string,
         app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
       if (Array.isArray(payload)) {
-        const records = extractReadings(payload);
-        return JSON.stringify({ station: args.station, count: records.length, data: records });
+        return historyResult(args.station, extractReadings(payload), args.start_date);
       }
-      return JSON.stringify(data, null, 2);
+      return historyResult(args.station, [], args.start_date);
     }
 
     default:

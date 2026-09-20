@@ -84,6 +84,24 @@ interface CantonIdentifyResponse {
   results: CantonIdentifyResult[];
 }
 
+/** Canton of a dam: point-in-polygon, or nearest within BORDER_TOLERANCE_M. */
+interface DamCanton {
+  code: string | null;
+  /** true when the dam point lies outside every canton polygon (Rhine border plants). */
+  approx?: boolean;
+}
+
+// ── Caches ───────────────────────────────────────────────────────────────────
+
+/** The layer holds ~200 dams; fetching it once per process keeps canton lookups cheap. */
+let allDamsCache: DamFindResult[] | null = null;
+const cantonByFeature = new Map<number, DamCanton>();
+
+export function clearDamsCache(): void {
+  allDamsCache = null;
+  cantonByFeature.clear();
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Extract year from ISO date string like "1961-01-01" */
@@ -94,7 +112,7 @@ function extractYear(dateStr: string | null): number | null {
 }
 
 /** Format a dam result for search/list output (compact) */
-function formatDamSummary(dam: DamFindResult, canton?: string | null): Record<string, unknown> {
+function formatDamSummary(dam: DamFindResult, canton?: DamCanton | null): Record<string, unknown> {
   const a = dam.attributes;
   return {
     dam_name: a.damname,
@@ -105,13 +123,14 @@ function formatDamSummary(dam: DamFindResult, canton?: string | null): Record<st
     reservoir: a.reservoirname,
     volume_million_m3: a.impoundmentvolume ? parseFloat(a.impoundmentvolume) : null,
     purpose: a.facaim_en ?? a.facaim_de,
-    canton: canton ?? null,
+    canton: canton?.code ?? null,
+    canton_on_national_border: canton?.approx ? true : undefined,
     year_built: a.baujahr ?? extractYear(a.beginningofoperation),
   };
 }
 
 /** Format a dam result for full detail output */
-function formatDamDetail(dam: DamFindResult, canton?: string | null): Record<string, unknown> {
+function formatDamDetail(dam: DamFindResult, canton?: DamCanton | null): Record<string, unknown> {
   const a = dam.attributes;
   return {
     dam_name: a.damname,
@@ -140,46 +159,85 @@ function formatDamDetail(dam: DamFindResult, canton?: string | null): Record<str
       beginning_of_operation: a.beginningofoperation,
       start_of_federal_supervision: a.startsupervision,
     },
-    canton: canton ?? null,
+    canton: canton?.code ?? null,
+    canton_on_national_border: canton?.approx ? true : undefined,
     feature_id: dam.featureId,
   };
 }
 
-/** Fetch canton code (e.g. "VS") for a dam via coordinate identify */
-async function fetchCantonForCoords(x: number, y: number): Promise<string | null> {
-  const url = buildUrl(`${BASE}/identify`, {
+/** Half-width of the identify window, in metres; with imageDisplay below it is 1 m per pixel. */
+const IDENTIFY_WINDOW_M = 1000;
+/** Plants on the Rhine sit a few metres outside every canton polygon. */
+const BORDER_TOLERANCE_M = 300;
+
+function cantonIdentifyUrl(x: number, y: number, toleranceM: number): string {
+  return buildUrl(`${BASE}/identify`, {
     geometry: `${x},${y}`,
     geometryType: "esriGeometryPoint",
     layers: `all:${CANTON_LAYER}`,
-    mapExtent: "480000,70000,840000,300000",
-    imageDisplay: "1000,800,96",
-    tolerance: "0",
-    sr: "21781",
-    returnGeometry: "false",
+    mapExtent: `${x - IDENTIFY_WINDOW_M},${y - IDENTIFY_WINDOW_M},${x + IDENTIFY_WINDOW_M},${y + IDENTIFY_WINDOW_M}`,
+    imageDisplay: `${IDENTIFY_WINDOW_M * 2},${IDENTIFY_WINDOW_M * 2},96`,
+    tolerance: toleranceM,
+    sr: 2056,
+    returnGeometry: false,
   });
-  const data = await fetchJSON<CantonIdentifyResponse>(url);
-  return data.results?.[0]?.attributes?.ak ?? null;
 }
 
-/** Fetch canton bbox by 2-letter canton code */
+/**
+ * Canton for an LV95 point, from the swissboundaries3d canton polygons.
+ * Exact hit first; only if the point is outside Switzerland's polygons (dams shared
+ * with Germany) do we accept the canton within BORDER_TOLERANCE_M, flagged as such.
+ */
+async function fetchCantonForCoords(x: number, y: number): Promise<DamCanton> {
+  const exact = await fetchJSON<CantonIdentifyResponse>(cantonIdentifyUrl(x, y, 0));
+  const hit = exact.results?.[0]?.attributes?.ak;
+  if (hit) return { code: hit };
+
+  const near = await fetchJSON<CantonIdentifyResponse>(cantonIdentifyUrl(x, y, BORDER_TOLERANCE_M));
+  const codes = new Set((near.results ?? []).map((r) => r.attributes.ak));
+  // Ambiguous (two cantons within tolerance) means we cannot verify one — say so.
+  if (codes.size !== 1) return { code: null };
+  return { code: [...codes][0], approx: true };
+}
+
+/** Canton for a dam, memoised per feature for the lifetime of the process. */
+async function cantonForDam(dam: DamFindResult): Promise<DamCanton> {
+  const x = dam.geometry?.x;
+  const y = dam.geometry?.y;
+  if (x == null || y == null) return { code: null };
+
+  const cached = cantonByFeature.get(dam.featureId);
+  if (cached) return cached;
+
+  const canton = await fetchCantonForCoords(x, y).catch(() => ({ code: null }) as DamCanton);
+  if (canton.code) cantonByFeature.set(dam.featureId, canton);
+  return canton;
+}
+
+/** Resolve cantons for many dams without hammering the identify endpoint. */
+async function cantonsForDams(dams: DamFindResult[], concurrency = 8): Promise<DamCanton[]> {
+  const out: DamCanton[] = new Array<DamCanton>(dams.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let i = next++; i < dams.length; i = next++) {
+      out[i] = await cantonForDam(dams[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, dams.length) }, worker));
+  return out;
+}
+
+/** Fetch canton polygon bbox (LV95) by 2-letter canton code */
 async function fetchCantonBbox(cantonCode: string): Promise<[number, number, number, number] | null> {
   const url = buildUrl(`${BASE}/find`, {
     layer: CANTON_LAYER,
     searchText: cantonCode.toUpperCase(),
     searchField: "ak",
-    returnGeometry: "false",
+    returnGeometry: true,
+    sr: 2056,
   });
   const data = await fetchJSON<CantonFindResponse>(url);
-  if (!data.results?.length) return null;
-  // Re-fetch with geometry=true to get bbox
-  const urlWithGeom = buildUrl(`${BASE}/find`, {
-    layer: CANTON_LAYER,
-    searchText: cantonCode.toUpperCase(),
-    searchField: "ak",
-  });
-  const dataWithGeom = await fetchJSON<CantonFindResponse>(urlWithGeom);
-  const canton = dataWithGeom.results?.[0];
-  return canton?.bbox ?? null;
+  return data.results?.[0]?.bbox ?? null;
 }
 
 /** Fetch all dams matching searchText in a given field */
@@ -189,9 +247,17 @@ async function findDams(searchText: string, searchField: string, withGeometry = 
     searchText,
     searchField,
     returnGeometry: withGeometry ? "true" : "false",
+    sr: 2056,
   });
   const data = await fetchJSON<DamFindResponse>(url);
   return data.results ?? [];
+}
+
+/** Every dam in the layer, with geometry. Cached — the layer is ~200 rows. */
+async function loadAllDams(): Promise<DamFindResult[]> {
+  if (allDamsCache) return allDamsCache;
+  allDamsCache = await findDams("%", "damname", true);
+  return allDamsCache;
 }
 
 // ── Tool definitions ─────────────────────────────────────────────────────────
@@ -260,10 +326,10 @@ export async function handleDams(
         throw new Error("query is required");
       }
 
-      // Try damname first, fall back to reservoirname if no results
-      let results = await findDams(query, "damname");
+      // Geometry is required here: the canton comes from the dam's coordinates.
+      let results = await findDams(query, "damname", true);
       if (!results.length) {
-        results = await findDams(query, "reservoirname");
+        results = await findDams(query, "reservoirname", true);
       }
 
       if (!results.length) {
@@ -275,16 +341,9 @@ export async function handleDams(
         }, null, 2);
       }
 
-      // For up to 5 results, resolve canton via coordinate identify
-      const enriched = await Promise.all(
-        results.slice(0, MAX_RESULTS).map(async (dam) => {
-          let canton: string | null = null;
-          if (dam.geometry?.x != null && dam.geometry?.y != null) {
-            canton = await fetchCantonForCoords(dam.geometry.x, dam.geometry.y).catch(() => null);
-          }
-          return formatDamSummary(dam, canton);
-        })
-      );
+      const shown = results.slice(0, MAX_RESULTS);
+      const cantons = await cantonsForDams(shown);
+      const enriched = shown.map((dam, i) => formatDamSummary(dam, cantons[i]));
 
       const response = {
         results: enriched,
@@ -317,24 +376,26 @@ export async function handleDams(
         throw new Error("canton must be a 2-letter Swiss canton code (e.g. 'VS', 'GR', 'BE', 'ZH')");
       }
 
-      // Get canton bounding box
       const bbox = await fetchCantonBbox(cantonCode);
       if (!bbox) {
         throw new Error(`Unknown canton code: "${cantonCode}". Use standard 2-letter Swiss canton abbreviations (VS, GR, BE, UR, TI, VD, etc.)`);
       }
 
+      // The bbox only narrows the candidates; every one of them is then checked
+      // against the canton polygon, because a box overlaps its neighbours.
       const [xmin, ymin, xmax, ymax] = bbox;
-
-      // Fetch all dams with geometry to filter by canton bbox
-      const allDams = await findDams("%", "damname", true);
-
-      // Filter dams whose coordinates fall within the canton bbox
-      const cantonDams = allDams.filter((dam) => {
+      const pad = BORDER_TOLERANCE_M;
+      const allDams = await loadAllDams();
+      const candidates = allDams.filter((dam) => {
         const x = dam.geometry?.x;
         const y = dam.geometry?.y;
         if (x == null || y == null) return false;
-        return x >= xmin && x <= xmax && y >= ymin && y <= ymax;
+        return x >= xmin - pad && x <= xmax + pad && y >= ymin - pad && y <= ymax + pad;
       });
+
+      const candidateCantons = await cantonsForDams(candidates);
+      const cantonDams = candidates.filter((_, i) => candidateCantons[i]?.code === cantonCode);
+      const cantonOf = new Map(candidates.map((dam, i) => [dam.featureId, candidateCantons[i]]));
 
       if (!cantonDams.length) {
         return JSON.stringify({
@@ -347,7 +408,7 @@ export async function handleDams(
       }
 
       const limited = cantonDams.slice(0, MAX_RESULTS);
-      const formatted = limited.map((dam) => formatDamSummary(dam, cantonCode));
+      const formatted = limited.map((dam) => formatDamSummary(dam, cantonOf.get(dam.featureId)));
 
       const response = {
         canton: cantonCode,
@@ -358,6 +419,7 @@ export async function handleDams(
           ? `Showing first ${MAX_RESULTS} of ${cantonDams.length} dams in canton ${cantonCode}.`
           : undefined,
         source: `${BASE}/find?layer=${DAMS_LAYER}`,
+        canton_source: CANTON_LAYER,
       };
 
       const json = JSON.stringify(response, null, 2);
@@ -412,13 +474,7 @@ export async function handleDams(
         }, null, 2);
       }
 
-      // Resolve canton from coordinates
-      let canton: string | null = null;
-      if (dam.geometry?.x != null && dam.geometry?.y != null) {
-        canton = await fetchCantonForCoords(dam.geometry.x, dam.geometry.y).catch(() => null);
-      }
-
-      const detail = formatDamDetail(dam, canton);
+      const detail = formatDamDetail(dam, await cantonForDam(dam));
       const response = {
         found: true,
         ...detail,

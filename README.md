@@ -441,9 +441,9 @@ Once connected, try asking your AI:
 |------|-------------|
 | `search_companies` | Search by name, canton, legal form |
 | `get_company` | Full company details by ZEFIX `ehraid` |
-| `search_companies_by_address` | Companies registered at an address |
+| `search_companies_by_locality` | Companies with their registered seat in a commune |
 | `list_cantons` | All 26 Swiss cantons |
-| `list_legal_forms` | AG, GmbH, and all Swiss legal forms |
+| `list_legal_forms` | AG, GmbH, and all Swiss legal forms with their ZEFIX ids |
 
 ### 🎄 Holidays (3 tools)
 
@@ -556,7 +556,7 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_property_price_index` | Swiss property price index (BFS Immo-Monitoring) |
+| `get_property_price_index` | BFS residential property price index (IMPI), quarterly |
 | `search_real_estate_data` | Search BFS real estate datasets on opendata.swiss |
 | `get_rent_index` | Swiss rent index and housing cost data from BFS |
 

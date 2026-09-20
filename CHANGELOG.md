@@ -7,6 +7,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- `get_dams_by_canton` and `list_postcodes_in_canton` filtered by the canton's bounding box, so they returned places from neighbouring cantons under the wrong canton label. Lucerne, for instance, listed six dams, none of them in LU. Both now use a real canton attribute: dams are checked against the swissboundaries3d canton polygons, postcodes come from the canton column of the official locality register (AMTOVZ). Postcodes that only reach into a canton are listed separately with their main canton and address share, and dams on the German border are flagged.
+- `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
+- `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
+
 ## [0.9.0] - 2026-09-19
 
 First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss), rebased on upstream `develop` (v0.8.0: pollen module, snow fixes, dependency updates through 2026-09-14).
@@ -49,6 +56,14 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - SECURITY.md described a stdio-only tool that opens no port
 
 ### Fixed
+- `get_weather_history` and `get_water_history` sent `startdt`/`enddt`, which api.existenz.ch ignores: every call returned the last 24 hours labelled as the requested period. They now send `startdate`/`enddate`, and say so when a range falls outside the ~32-day archive
+- `get_traffic_nearby` and `get_trail_closures_nearby` passed the radius in metres as a pixel tolerance on a 1x1 px map, so a few kilometres matched the whole country (1 km around Lausanne returned 201 stations from 24 cantons). Both now query an LV95 box, filter on real distance and report `distance_m`, nearest first
+- `reverse_geocode` always returned zero results: swisstopo's SearchServer has no reverse lookup. It now resolves the nearest address from the building register plus the containing municipality, canton and BFS number
+- ZEFIX `search_companies` sent the canton as `cantonAbbreviation` and the legal form as `legalFormCode`; the search endpoint knows neither field and quietly returned unfiltered results. It now resolves the canton to its registry-office ids (`registryOffices`) and the legal form to its numeric id (`legalForms`), and rejects values it cannot resolve
+- `list_legal_forms` returned invented `0101`-style codes that `search_companies` never accepted. It now returns the live ZEFIX list (`legalForm.json`) with the ids the search really filters on — `3` = AG, `4` = GmbH
+- `search_companies_by_address` sent the address as the company name, so it was a name search wearing an address label. ZEFIX has no street-address search at all, so the tool is now `search_companies_by_locality`: it resolves a commune or town (accent-insensitive, alternate names included) to legal-seat ids. A street address is rejected with an error that explains why
+- `get_company` interpolated `ehraid` straight into the URL path; it is now checked for digits only
+- `get_company` returned the whole SOGC journal (60 KB for Migros alone); capped at the 10 newest entries plus a `shabPubTotal` count. Search results are slimmed and carry the canton and legal-form label
 - Sessions with an open event stream are no longer closed by the idle sweeper
 - `search_places` advertised `type: "featuresearch"`, which always returned HTTP 400 because the tool sends no layer; the parameter is gone
 - User-Agent and the existenz.ch `app` parameter still said `mcp-swiss`
