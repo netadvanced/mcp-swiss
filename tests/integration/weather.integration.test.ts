@@ -35,15 +35,50 @@ describe.skipIf(!reachable)('Weather API (live)', () => {
     expect(size).toBeLessThan(5000);
   });
 
-  it('get_weather_history returns station and data array', async () => {
+  const daysAgo = (n: number) =>
+    new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+
+  it('get_weather_history returns readings inside the requested range', async () => {
+    const start = daysAgo(10);
+    const end = daysAgo(8);
     const result = JSON.parse(await handleWeather('get_weather_history', {
       station: 'BER',
-      start_date: '2026-03-01',
-      end_date: '2026-03-02',
+      start_date: start,
+      end_date: end,
     }));
     expect(result.station).toBe('BER');
     expect(result.count).toBeGreaterThan(0);
-    expect(Array.isArray(result.data)).toBe(true);
+
+    // The bug this guards: wrong parameter names made the API ignore the range
+    // and return the last 24 h instead.
+    const days = (result.data as Array<{ time?: string }>)
+      .map((r) => r.time?.slice(0, 10))
+      .filter(Boolean) as string[];
+    expect(days.length).toBeGreaterThan(0);
+    expect(Math.min(...days.map(Date.parse))).toBeGreaterThanOrEqual(Date.parse(start));
+    expect(Math.max(...days.map(Date.parse))).toBeLessThanOrEqual(Date.parse(end) + 86_400_000);
+  });
+
+  it('get_weather_history explains a range older than the 32-day archive', async () => {
+    const result = JSON.parse(await handleWeather('get_weather_history', {
+      station: 'BER',
+      start_date: daysAgo(400),
+      end_date: daysAgo(398),
+    }));
+    expect(result.count).toBe(0);
+    expect(result.note).toMatch(/32 days/);
+  });
+
+  it('get_water_history returns readings inside the requested range', async () => {
+    const start = daysAgo(6);
+    const result = JSON.parse(await handleWeather('get_water_history', {
+      station: '2135',
+      start_date: start,
+      end_date: daysAgo(5),
+    }));
+    expect(result.count).toBeGreaterThan(0);
+    const first = (result.data as Array<{ time?: string }>)[0]?.time;
+    expect(Date.parse(first!)).toBeGreaterThanOrEqual(Date.parse(start));
   });
 
   it('get_water_level returns readings for Aare/Bern', async () => {
@@ -66,8 +101,8 @@ describe.skipIf(!reachable)('Weather API (live)', () => {
   it('get_water_history returns historical hydro data', async () => {
     const result = JSON.parse(await handleWeather('get_water_history', {
       station: '2135',
-      start_date: '2026-03-01',
-      end_date: '2026-03-02',
+      start_date: daysAgo(3),
+      end_date: daysAgo(2),
     }));
     expect(result.station).toBe('2135');
     expect(result.count).toBeGreaterThan(0);

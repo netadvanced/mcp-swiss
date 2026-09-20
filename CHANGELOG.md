@@ -49,6 +49,9 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - SECURITY.md described a stdio-only tool that opens no port
 
 ### Fixed
+- `get_weather_history` and `get_water_history` sent `startdt`/`enddt`, which api.existenz.ch ignores: every call returned the last 24 hours labelled as the requested period. They now send `startdate`/`enddate`, and say so when a range falls outside the ~32-day archive
+- `get_traffic_nearby` and `get_trail_closures_nearby` passed the radius in metres as a pixel tolerance on a 1x1 px map, so a few kilometres matched the whole country (1 km around Lausanne returned 201 stations from 24 cantons). Both now query an LV95 box, filter on real distance and report `distance_m`, nearest first
+- `reverse_geocode` always returned zero results: swisstopo's SearchServer has no reverse lookup. It now resolves the nearest address from the building register plus the containing municipality, canton and BFS number
 - Sessions with an open event stream are no longer closed by the idle sweeper
 - `search_places` advertised `type: "featuresearch"`, which always returned HTTP 400 because the tool sends no layer; the parameter is gone
 - User-Agent and the existenz.ch `app` parameter still said `mcp-swiss`

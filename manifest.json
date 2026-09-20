@@ -58,7 +58,7 @@
     },
     {
       "name": "get_weather_history",
-      "description": "Historical weather readings for a MeteoSwiss station over a date range"
+      "description": "Historical weather readings for a MeteoSwiss station. Only the last 32 days are available"
     },
     {
       "name": "get_water_level",
@@ -70,7 +70,7 @@
     },
     {
       "name": "get_water_history",
-      "description": "Historical river/lake levels for a BAFU hydro station over a date range"
+      "description": "Historical river/lake levels for a BAFU hydro station. Only the last 32 days are available"
     },
     {
       "name": "geocode",
