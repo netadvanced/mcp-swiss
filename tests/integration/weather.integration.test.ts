@@ -50,13 +50,27 @@ describe.skipIf(!reachable)('Weather API (live)', () => {
     expect(result.count).toBeGreaterThan(0);
 
     // The bug this guards: wrong parameter names made the API ignore the range
-    // and return the last 24 h instead.
-    const days = (result.data as Array<{ time?: string }>)
-      .map((r) => r.time?.slice(0, 10))
+    // and return the last 24 h instead. A multi-day range is summarised, so the
+    // period label carries the date.
+    const days = (result.data as Array<{ time?: string; period?: string }>)
+      .map((r) => (r.period ?? r.time)?.slice(0, 10))
       .filter(Boolean) as string[];
     expect(days.length).toBeGreaterThan(0);
     expect(Math.min(...days.map(Date.parse))).toBeGreaterThanOrEqual(Date.parse(start));
     expect(Math.max(...days.map(Date.parse))).toBeLessThanOrEqual(Date.parse(end) + 86_400_000);
+  });
+
+  it('get_weather_history keeps a long range inside the response budget', async () => {
+    const body = await handleWeather('get_weather_history', {
+      station: 'BER',
+      start_date: daysAgo(30),
+      end_date: daysAgo(0),
+    });
+    const result = JSON.parse(body);
+    // Raw, a month of 10-minute readings is several MB.
+    expect(body.length).toBeLessThan(50_000);
+    expect(result.resolution).toBe('daily');
+    expect(result.readings_summarised).toBeGreaterThan(result.count);
   });
 
   it('get_weather_history explains a range older than the 32-day archive', async () => {

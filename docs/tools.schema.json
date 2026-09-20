@@ -190,6 +190,17 @@
           "end_date": {
             "type": "string",
             "description": "YYYY-MM-DD"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "raw",
+              "hourly",
+              "daily"
+            ],
+            "description": "auto summarises long ranges to min/max/mean per period",
+            "default": "auto"
           }
         }
       }
@@ -240,6 +251,17 @@
           "end_date": {
             "type": "string",
             "description": "YYYY-MM-DD"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "raw",
+              "hourly",
+              "daily"
+            ],
+            "description": "auto summarises long ranges to min/max/mean per period",
+            "default": "auto"
           }
         }
       }

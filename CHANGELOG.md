@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- Tool arguments are now validated against each tool's schema before a handler runs. MCP does not coerce, so a `year` sent as text reached an upstream query filter verbatim and a non-numeric `radius` became `NaN` in a URL; numeric and boolean strings are coerced, anything else is rejected with a clear message
+- `get_weather_history` and `get_water_history` returned every raw reading, so a 32-day range was ~3.2 MB. They now pick the finest resolution that fits the response budget (raw, hourly or daily min/max/mean) and say what they did; `resolution` forces a specific one
 - The connection retry only covered failures before the response headers. A socket dropped part-way through the body — which is what transport.opendata.ch does under its rate limit — failed at read time and was never retried. The retry now wraps the body read, and a test drops a real connection mid-body to prove it
 - A session holding an event stream was exempt from the idle sweep with no upper bound, so one client could hold a slot (and with a small cap, the server) indefinitely. Sessions now have a maximum lifetime (8 h, `sessionMaxLifetimeMs`)
 - HTTP session cap held only for sequential handshakes: concurrent `initialize` requests could all pass the check and overshoot it, and a handshake that failed after the server was built left an MCP server nothing would ever close. Slots are now reserved before the server is created and released when the handshake does not complete

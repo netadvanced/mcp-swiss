@@ -190,7 +190,7 @@ describe("stdio lifecycle", () => {
   });
 
   it("reports a failing tool as isError instead of a transport error", async () => {
-    // get_company rejects a non-numeric ehraid before it would call ZEFIX.
+    // Argument validation rejects a non-numeric ehraid before ZEFIX is called.
     const response = await session.request("tools/call", {
       name: "get_company",
       arguments: { ehraid: "CHE-105.829.940" },
@@ -198,7 +198,7 @@ describe("stdio lifecycle", () => {
     expect(response.error).toBeUndefined();
     const result = toolResult(response);
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Invalid ehraid");
+    expect(result.content[0].text).toContain("ehraid must be a number");
 
     // The connection survives a tool failure.
     expect(session.alive).toBe(true);

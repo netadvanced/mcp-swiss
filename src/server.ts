@@ -12,6 +12,7 @@ import {
   type ToolHandler,
 } from "./registry.js";
 import { VERSION } from "./utils/http.js";
+import { validateArgs } from "./utils/validate.js";
 
 export const SERVER_NAME = "mcp-swiss-ng";
 
@@ -117,6 +118,7 @@ export function errorMessage(error: unknown): string {
 export function createServer({ modules, discovery = false }: ServerOptions): Server {
   const loaded = new Map<string, ActiveModule>();
   const toolHandlers = new Map<string, ToolHandler>();
+  const toolsByName = new Map<string, ToolDefinition>();
   const tools: ToolDefinition[] = [];
 
   const loadModule = (mod: ActiveModule): boolean => {
@@ -125,6 +127,7 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
     for (const tool of mod.tools) {
       tools.push(tool);
       toolHandlers.set(tool.name, mod.handler);
+      toolsByName.set(tool.name, tool);
     }
     return true;
   };
@@ -207,7 +210,8 @@ export function createServer({ modules, discovery = false }: ServerOptions): Ser
       }
       throw new Error(`Unknown tool: ${name}`);
     }
-    return handler(name, args);
+    const definition = toolsByName.get(name);
+    return handler(name, definition ? validateArgs(definition, args) : args);
   };
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listTools() }));
