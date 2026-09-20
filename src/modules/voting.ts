@@ -375,65 +375,6 @@ export async function handleGetVoteDetails(params: {
   return JSON.stringify(detail);
 }
 
-// ── MCP registration ──────────────────────────────────────────────────────────
-
-export function registerVotingTools(server: {
-  tool: (
-    name: string,
-    description: string,
-    schema: object,
-    handler: (params: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text: string }> }>,
-  ) => void;
-}): void {
-  server.tool(
-    "get_voting_results",
-    votingTools[0].description,
-    votingTools[0].inputSchema,
-    async (params) => ({
-      content: [
-        {
-          type: "text",
-          text: await handleGetVotingResults(
-            params as { year?: number; limit?: number },
-          ),
-        },
-      ],
-    }),
-  );
-
-  server.tool(
-    "search_votes",
-    votingTools[1].description,
-    votingTools[1].inputSchema,
-    async (params) => ({
-      content: [
-        {
-          type: "text",
-          text: await handleSearchVotes(
-            params as { query: string; limit?: number },
-          ),
-        },
-      ],
-    }),
-  );
-
-  server.tool(
-    "get_vote_details",
-    votingTools[2].description,
-    votingTools[2].inputSchema,
-    async (params) => ({
-      content: [
-        {
-          type: "text",
-          text: await handleGetVoteDetails(
-            params as { vote_title?: string; date?: string },
-          ),
-        },
-      ],
-    }),
-  );
-}
-
 // ── Adapter export for index.ts integration ───────────────────────────────────
 
 export async function handleVoting(

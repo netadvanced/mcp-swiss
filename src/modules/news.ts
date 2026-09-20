@@ -1,5 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { httpFetch } from "../utils/http.js";
 
 // ── SRF RSS Feed IDs ─────────────────────────────────────────────────────────
@@ -173,53 +171,6 @@ export async function handleSearchSwissNews(args: {
   };
 
   return JSON.stringify(result, null, 2);
-}
-
-// ── Tool registration ─────────────────────────────────────────────────────────
-
-export function registerNewsTools(server: McpServer): void {
-  server.tool(
-    "get_swiss_news",
-    "Latest SRF news headlines",
-    {
-      category: z
-        .enum(["switzerland", "international", "economy"])
-        .optional()
-        .describe(
-          'News category. "switzerland" = domestic Swiss news (default), "international" = world news, "economy" = business & economy.'
-        ),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
-        .optional()
-        .describe("max 50"),
-    },
-    async (args) => {
-      const text = await handleGetSwissNews(args);
-      return { content: [{ type: "text", text }] };
-    }
-  );
-
-  server.tool(
-    "search_swiss_news",
-    "Keyword search in current SRF headlines (all categories)",
-    {
-      query: z.string().min(1).describe("Keyword or phrase"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(20)
-        .optional()
-        .describe("max 20"),
-    },
-    async (args) => {
-      const text = await handleSearchSwissNews(args);
-      return { content: [{ type: "text", text }] };
-    }
-  );
 }
 
 // ── Adapter exports for index.ts integration ──────────────────────────────────

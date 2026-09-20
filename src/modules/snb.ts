@@ -5,8 +5,6 @@
 //   Monthly data: https://data.snb.ch/api/cube/devkum/data/csv/en
 //   Annual data:  https://data.snb.ch/api/cube/devkua/data/csv/en
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { fetchJSON, httpFetch } from "../utils/http.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -361,68 +359,6 @@ async function handleGetExchangeRateHistory(
     },
     null,
     2
-  );
-}
-
-// ── Tool registration ────────────────────────────────────────────────────────
-
-export function registerSnbTools(server: McpServer): void {
-  // ── list_currencies ───────────────────────────────────────────────────────
-
-  server.tool(
-    "list_currencies",
-    "List currencies with SNB CHF exchange rates",
-    {},
-    async () => {
-      const result = await handleListCurrencies();
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate ─────────────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate",
-    "Latest SNB monthly-average CHF exchange rate for a currency",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 code, e.g. EUR"
-        ),
-    },
-    async ({ currency }) => {
-      const result = await handleGetExchangeRate(currency);
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate_history ─────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate_history",
-    "Historical SNB monthly-average CHF exchange rates (default: last 90 months)",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 code, e.g. EUR"
-        ),
-      from: z
-        .string()
-        .optional()
-        .describe(
-          "Start date in YYYY-MM format (e.g. '2020-01'). Optional — defaults to 90 months ago if not provided."
-        ),
-      to: z
-        .string()
-        .optional()
-        .describe("End date in YYYY-MM format (e.g. '2026-02'). Optional — defaults to latest available."),
-    },
-    async ({ currency, from, to }) => {
-      const result = await handleGetExchangeRateHistory(currency, from, to);
-      return { content: [{ type: "text", text: result }] };
-    }
   );
 }
 
