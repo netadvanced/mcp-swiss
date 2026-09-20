@@ -1,320 +1,262 @@
-import { describe, it, expect } from 'vitest';
-import { spawn } from 'child_process';
-import { resolve } from 'path';
-import { readFileSync } from 'fs';
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { once } from "node:events";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 
-const SERVER_PATH = resolve(__dirname, '../../dist/index.js');
-const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf8')) as { version: string };
+import { moduleRegistry } from "../../src/registry.js";
+
+// The shipped entry point, not src/: this is what `npx mcp-swiss-ng` runs.
+const SERVER_PATH = resolve(__dirname, "../../dist/index.js");
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "../../package.json"), "utf8")) as { version: string };
 
 interface JsonRpcResponse {
   jsonrpc: string;
   id: number;
-  result?: unknown;
+  result?: Record<string, unknown>;
   error?: { code: number; message: string };
+}
+
+interface JsonRpcNotification {
+  method: string;
+  params?: Record<string, unknown>;
 }
 
 interface Tool {
   name: string;
   description: string;
-  inputSchema: unknown;
+  inputSchema: { type?: string };
+  annotations?: Record<string, boolean>;
+}
+
+interface ToolResult {
+  isError?: boolean;
+  content: Array<{ type: string; text: string }>;
 }
 
 /**
- * Send a JSON-RPC message to the MCP server process and collect the response.
- * The MCP SDK may emit multiple newline-delimited JSON objects on stdout;
- * we collect lines until we find one that contains our request id.
+ * One long-lived `node dist/index.js` speaking newline-delimited JSON-RPC on
+ * stdio, so a whole session runs over a single process like a real client's.
  */
-function sendMcpRequest(
-  request: Record<string, unknown>,
-  timeoutMs = 8000
-): Promise<JsonRpcResponse> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('node', [SERVER_PATH], {
-      stdio: ['pipe', 'pipe', 'pipe'],
+class StdioSession {
+  private readonly proc: ChildProcessWithoutNullStreams;
+  private readonly waiting = new Map<number, (res: JsonRpcResponse) => void>();
+  private buffer = "";
+  private nextId = 1;
+  private exited = false;
+  readonly notifications: JsonRpcNotification[] = [];
+  stderr = "";
+
+  constructor(args: string[] = []) {
+    this.proc = spawn(process.execPath, [SERVER_PATH, ...args], { stdio: ["pipe", "pipe", "pipe"] });
+    this.proc.stdout.setEncoding("utf8");
+    this.proc.stderr.setEncoding("utf8");
+    this.proc.stdout.on("data", (chunk: string) => this.consume(chunk));
+    this.proc.stderr.on("data", (chunk: string) => {
+      this.stderr += chunk;
     });
+    this.proc.on("exit", () => {
+      this.exited = true;
+    });
+  }
 
-    let stdout = '';
-    let timedOut = false;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-      reject(new Error(`MCP request timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    proc.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-      // Try to parse each newline-delimited line
-      const lines = stdout.split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const parsed = JSON.parse(trimmed) as JsonRpcResponse;
-          if (parsed.id === request.id) {
-            clearTimeout(timer);
-            proc.kill();
-            resolve(parsed);
-            return;
-          }
-        } catch {
-          // Not valid JSON yet, keep collecting
-        }
+  private consume(chunk: string): void {
+    this.buffer += chunk;
+    const lines = this.buffer.split("\n");
+    this.buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const message = JSON.parse(line) as JsonRpcResponse & JsonRpcNotification;
+      if (typeof message.id === "number") {
+        this.waiting.get(message.id)?.(message);
+        this.waiting.delete(message.id);
+      } else if (message.method) {
+        this.notifications.push(message);
       }
-    });
+    }
+  }
 
-    proc.on('error', (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-
-    proc.on('close', (code) => {
-      if (!timedOut) {
+  request(method: string, params?: Record<string, unknown>, timeoutMs = 10_000): Promise<JsonRpcResponse> {
+    const id = this.nextId++;
+    return new Promise((resolveResponse, reject) => {
+      const timer = setTimeout(() => {
+        this.waiting.delete(id);
+        reject(new Error(`${method} timed out after ${timeoutMs}ms. stderr: ${this.stderr}`));
+      }, timeoutMs);
+      this.waiting.set(id, (res) => {
         clearTimeout(timer);
-        // Try one last parse of everything we got
-        const lines = stdout.split('\n');
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const parsed = JSON.parse(trimmed) as JsonRpcResponse;
-            if (parsed.id === request.id) {
-              resolve(parsed);
-              return;
-            }
-          } catch {
-            // ignore
-          }
-        }
-        reject(new Error(`Process exited with code ${code} before response. stdout: ${stdout.slice(0, 500)}`));
-      }
+        resolveResponse(res);
+      });
+      this.write({ jsonrpc: "2.0", id, method, params });
     });
+  }
 
-    // Write request then close stdin to signal EOF (server reads line by line)
-    proc.stdin.write(JSON.stringify(request) + '\n');
-    proc.stdin.end();
-  });
+  notify(method: string, params?: Record<string, unknown>): void {
+    this.write({ jsonrpc: "2.0", method, params });
+  }
+
+  get alive(): boolean {
+    return !this.exited;
+  }
+
+  private write(message: Record<string, unknown>): void {
+    this.proc.stdin.write(JSON.stringify(message) + "\n");
+  }
+
+  async stop(): Promise<void> {
+    if (this.exited) return;
+    this.proc.stdin.end();
+    this.proc.kill();
+    await once(this.proc, "exit");
+  }
 }
 
-// ── tools/list ────────────────────────────────────────────────────────────────
+/** initialize → notifications/initialized, the sequence every client performs. */
+async function handshake(session: StdioSession, protocolVersion = LATEST_PROTOCOL_VERSION) {
+  const response = await session.request("initialize", {
+    protocolVersion,
+    capabilities: {},
+    clientInfo: { name: "protocol-test", version: "0" },
+  });
+  session.notify("notifications/initialized");
+  return response;
+}
 
-describe('MCP protocol: tools/list', () => {
-  it('responds with valid JSON-RPC structure', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/list',
-    });
+function tools(response: JsonRpcResponse): Tool[] {
+  return (response.result as { tools: Tool[] }).tools;
+}
 
-    expect(response.jsonrpc).toBe('2.0');
-    expect(response.id).toBe(1);
-    expect(response.result).toBeDefined();
+function toolResult(response: JsonRpcResponse): ToolResult {
+  return response.result as unknown as ToolResult;
+}
+
+const registryToolNames = Object.values(moduleRegistry).flatMap((m) => m.tools.map((t) => t.name));
+
+describe("stdio lifecycle", () => {
+  let session: StdioSession;
+  let initialize: JsonRpcResponse;
+
+  beforeAll(async () => {
+    session = new StdioSession();
+    initialize = await handshake(session);
   });
 
-  it('result.tools is an array', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/list',
-    });
-
-    const result = response.result as { tools: Tool[] };
-    expect(Array.isArray(result.tools)).toBe(true);
+  afterAll(async () => {
+    await session.stop();
   });
 
-  it('returns exactly 82 tools', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tools/list',
-    });
-
-    const result = response.result as { tools: Tool[] };
-    expect(result.tools).toHaveLength(82);
+  it("negotiates a protocol version and reports who it is", () => {
+    expect(initialize.error).toBeUndefined();
+    const result = initialize.result as {
+      protocolVersion: string;
+      serverInfo: { name: string; version: string };
+      capabilities: { tools?: { listChanged?: boolean } };
+    };
+    expect(SUPPORTED_PROTOCOL_VERSIONS).toContain(result.protocolVersion);
+    expect(result.protocolVersion).toBe(LATEST_PROTOCOL_VERSION);
+    expect(result.serverInfo).toEqual({ name: "mcp-swiss-ng", version: pkg.version });
+    expect(result.capabilities.tools).toBeDefined();
+    // listChanged is a discovery-mode promise only.
+    expect(result.capabilities.tools?.listChanged).toBe(false);
   });
 
-  it('marks every tool as read-only via annotations', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 5,
-      method: 'tools/list',
-    });
+  it("lists every registered tool, annotated read-only", async () => {
+    const listed = tools(await session.request("tools/list"));
+    expect(listed).toHaveLength(82);
+    // The default run must expose the whole registry: a module missing from
+    // presets.full would show up here and nowhere else.
+    expect(listed.map((t) => t.name).sort()).toEqual([...registryToolNames].sort());
 
-    const result = response.result as { tools: Tool[] };
-    for (const tool of result.tools) {
-      expect(tool.annotations?.readOnlyHint).toBe(true);
-      expect(tool.annotations?.destructiveHint).toBe(false);
-      expect(tool.annotations?.openWorldHint).toBe(true);
+    for (const tool of listed) {
+      expect(tool.description.length, tool.name).toBeGreaterThan(0);
+      expect(tool.inputSchema.type, tool.name).toBe("object");
+      expect(tool.annotations, tool.name).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+      });
     }
   });
 
-  it('reports the package.json version in serverInfo', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 6,
-      method: 'initialize',
-      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } },
-    });
-
-    const result = response.result as { serverInfo: { version: string } };
-    expect(result.serverInfo.version).toBe(pkg.version);
+  it("runs a tool and returns its payload as text content", async () => {
+    // list_cantons answers from a constant, so the suite stays offline.
+    const result = toolResult(await session.request("tools/call", { name: "list_cantons", arguments: {} }));
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0].type).toBe("text");
+    const cantons = JSON.parse(result.content[0].text) as Array<{ code: string; name: string }>;
+    expect(cantons).toHaveLength(26);
+    expect(cantons.map((c) => c.code)).toContain("ZH");
   });
 
-  it('each tool has name, description, inputSchema', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 4,
-      method: 'tools/list',
+  it("reports a failing tool as isError instead of a transport error", async () => {
+    // get_company rejects a non-numeric ehraid before it would call ZEFIX.
+    const response = await session.request("tools/call", {
+      name: "get_company",
+      arguments: { ehraid: "CHE-105.829.940" },
     });
+    expect(response.error).toBeUndefined();
+    const result = toolResult(response);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Invalid ehraid");
 
-    const result = response.result as { tools: Tool[] };
-    for (const tool of result.tools) {
-      expect(typeof tool.name).toBe('string');
-      expect(tool.name.length).toBeGreaterThan(0);
-      expect(typeof tool.description).toBe('string');
-      expect(tool.description.length).toBeGreaterThan(0);
-      expect(tool.inputSchema).toBeDefined();
-    }
+    // The connection survives a tool failure.
+    expect(session.alive).toBe(true);
+    expect(tools(await session.request("tools/list")).length).toBeGreaterThan(0);
   });
 
-  it('contains expected transport tools', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 5,
-      method: 'tools/list',
-    });
-
-    const result = response.result as { tools: Tool[] };
-    const names = result.tools.map((t) => t.name);
-    expect(names).toContain('search_stations');
-    expect(names).toContain('get_connections');
-    expect(names).toContain('get_departures');
-    expect(names).toContain('get_arrivals');
-    expect(names).toContain('get_nearby_stations');
+  it("reports an unknown tool as isError", async () => {
+    const result = toolResult(
+      await session.request("tools/call", { name: "this_tool_does_not_exist", arguments: {} })
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Unknown tool: this_tool_does_not_exist");
   });
 
-  it('contains expected weather tools', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 6,
-      method: 'tools/list',
-    });
+  it("answers an unsupported method with -32601 and keeps serving", async () => {
+    const response = await session.request("resources/list");
+    expect(response.result).toBeUndefined();
+    expect(response.error?.code).toBe(-32601);
 
-    const result = response.result as { tools: Tool[] };
-    const names = result.tools.map((t) => t.name);
-    expect(names).toContain('get_weather');
-    expect(names).toContain('list_weather_stations');
-    expect(names).toContain('get_weather_history');
-    expect(names).toContain('get_water_level');
-    expect(names).toContain('list_hydro_stations');
-    expect(names).toContain('get_water_history');
-  });
-
-  it('contains expected geodata tools', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 7,
-      method: 'tools/list',
-    });
-
-    const result = response.result as { tools: Tool[] };
-    const names = result.tools.map((t) => t.name);
-    expect(names).toContain('geocode');
-    expect(names).toContain('reverse_geocode');
-    expect(names).toContain('search_places');
-    expect(names).toContain('get_solar_potential');
-    expect(names).toContain('identify_location');
-    expect(names).toContain('get_municipality');
-  });
-
-  it('contains expected companies tools', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 8,
-      method: 'tools/list',
-    });
-
-    const result = response.result as { tools: Tool[] };
-    const names = result.tools.map((t) => t.name);
-    expect(names).toContain('search_companies');
-    expect(names).toContain('get_company');
-    expect(names).toContain('search_companies_by_locality');
-    expect(names).toContain('list_cantons');
-    expect(names).toContain('list_legal_forms');
+    expect(session.alive).toBe(true);
+    expect(tools(await session.request("tools/list")).length).toBeGreaterThan(0);
   });
 });
 
-// ── tools/call (local/no-network tools) ──────────────────────────────────────
+describe("stdio discovery mode", () => {
+  let session: StdioSession;
+  let initialize: JsonRpcResponse;
 
-describe('MCP protocol: tools/call', () => {
-  it('list_cantons returns content array with text', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 10,
-      method: 'tools/call',
-      params: {
-        name: 'list_cantons',
-        arguments: {},
-      },
-    });
-
-    expect(response.result).toBeDefined();
-    const result = response.result as { content: Array<{ type: string; text: string }> };
-    expect(Array.isArray(result.content)).toBe(true);
-    expect(result.content[0].type).toBe('text');
-    expect(typeof result.content[0].text).toBe('string');
+  beforeAll(async () => {
+    session = new StdioSession(["--discovery"]);
+    initialize = await handshake(session);
   });
 
-  it('list_cantons returns 26 cantons in JSON text', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 11,
-      method: 'tools/call',
-      params: {
-        name: 'list_cantons',
-        arguments: {},
-      },
-    });
-
-    const result = response.result as { content: Array<{ type: string; text: string }> };
-    const cantons = JSON.parse(result.content[0].text);
-    expect(Array.isArray(cantons)).toBe(true);
-    expect(cantons).toHaveLength(26);
+  afterAll(async () => {
+    await session.stop();
   });
 
-  // list_legal_forms now reads the live ZEFIX list, so it belongs in the
-  // integration suite. get_company rejects a bad ehraid before any request.
-  it('get_company rejects a non-numeric ehraid without calling out', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 12,
-      method: 'tools/call',
-      params: {
-        name: 'get_company',
-        arguments: { ehraid: 'CHE-105.829.940' },
-      },
-    });
-
-    const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('Invalid ehraid');
+  it("starts on the meta-tools and advertises listChanged", async () => {
+    const capabilities = (initialize.result as { capabilities: { tools?: { listChanged?: boolean } } }).capabilities;
+    expect(capabilities.tools?.listChanged).toBe(true);
+    expect(tools(await session.request("tools/list")).map((t) => t.name)).toEqual([
+      "swiss_discover",
+      "swiss_call",
+    ]);
   });
 
-  it('unknown tool returns isError:true response', async () => {
-    const response = await sendMcpRequest({
-      jsonrpc: '2.0',
-      id: 20,
-      method: 'tools/call',
-      params: {
-        name: 'this_tool_does_not_exist',
-        arguments: {},
-      },
-    });
+  it("loading a module adds its tools and notifies the client", async () => {
+    const result = toolResult(
+      await session.request("tools/call", { name: "swiss_discover", arguments: { modules: ["gwr"] } })
+    );
+    expect(result.isError).toBeFalsy();
+    expect((JSON.parse(result.content[0].text) as { newly_loaded: string[] }).newly_loaded).toEqual(["gwr"]);
 
-    // MCP SDK returns the error in result.isError
-    expect(response.result).toBeDefined();
-    const result = response.result as { isError?: boolean; content: Array<{ type: string; text: string }> };
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('Error');
+    await vi.waitFor(() =>
+      expect(session.notifications.map((n) => n.method)).toContain("notifications/tools/list_changed")
+    );
+
+    const names = tools(await session.request("tools/list")).map((t) => t.name);
+    expect(names).toEqual(["swiss_discover", "swiss_call", ...moduleRegistry.gwr.tools.map((t) => t.name)]);
   });
 });
