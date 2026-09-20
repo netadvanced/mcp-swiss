@@ -6,6 +6,7 @@ import {
   handleGetVoteDetails,
   votingTools,
   registerVotingTools,
+  odsqlString,
 } from "../../src/modules/voting.js";
 import {
   mockVotingRows,
@@ -19,15 +20,14 @@ import {
 // ── Fetch mock helper ─────────────────────────────────────────────────────────
 
 function mockFetch(payload: unknown, status = 200) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: status >= 200 && status < 300,
-      status,
-      statusText: status === 200 ? "OK" : "Error",
-      json: () => Promise.resolve(payload),
-    }),
-  );
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: status === 200 ? "OK" : "Error",
+    json: () => Promise.resolve(payload),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 afterEach(() => {
@@ -422,6 +422,23 @@ describe("get_voting_results", () => {
 });
 
 // ── search_votes ──────────────────────────────────────────────────────────────
+
+describe("ODSQL escaping", () => {
+  it("escapes quotes so a search term cannot inject conditions", () => {
+    expect(odsqlString('Gesetz "A"')).toBe('"Gesetz \\"A\\""');
+    expect(odsqlString("back\\slash")).toBe('"back\\\\slash"');
+  });
+
+  it("keeps an injected term inside the string literal", async () => {
+    const fetchMock = mockFetch(mockVotingRows);
+    await handleSearchVotes({ query: 'x" OR 1=1 OR abst_titel like "y' });
+    const where = new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("where")!;
+    // one condition added, and every injected quote is escaped
+    expect(where.split(" AND ")).toHaveLength(3);
+    expect(where).toContain('\\"');
+    expect(where).not.toMatch(/OR 1=1 OR abst_titel like "y"/);
+  });
+});
 
 describe("search_votes", () => {
   it("returns matching votes for a keyword", async () => {

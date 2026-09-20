@@ -11,7 +11,7 @@ function readVersion(): string {
 }
 
 export const VERSION = readVersion();
-export const USER_AGENT = `mcp-swiss/${VERSION}`;
+export const USER_AGENT = `mcp-swiss-ng/${VERSION}`;
 
 const envTimeout = Number(process.env.MCP_SWISS_TIMEOUT_MS);
 export const DEFAULT_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 30000;
@@ -22,7 +22,7 @@ export interface HttpOptions extends RequestInit {
 }
 
 /**
- * fetch() wrapper used by every module: sets the mcp-swiss User-Agent and
+ * fetch() wrapper used by every module: sets the mcp-swiss-ng User-Agent and
  * aborts after DEFAULT_TIMEOUT_MS (override with MCP_SWISS_TIMEOUT_MS) so a
  * hanging upstream API cannot stall a tool call forever.
  */

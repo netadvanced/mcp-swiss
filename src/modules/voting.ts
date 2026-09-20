@@ -125,6 +125,21 @@ function formatPct(v: number): number {
 }
 
 /**
+ * Quote a value for an ODSQL string literal. Escapes backslashes and double
+ * quotes so a search term cannot close the literal and inject its own
+ * conditions; `%` and `_` stay literal because ODSQL `like` only treats `*`
+ * and `?` as wildcards.
+ */
+export function odsqlString(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/** ODSQL `like` pattern matching anywhere in the field. */
+function odsqlContains(field: string, value: string): string {
+  return `${field} like ${odsqlString(`*${value}*`)}`;
+}
+
+/**
  * Fetch aggregate rows per vote (one row per commune Total per vote).
  * Filters on wahllok_name LIKE '%Total%' to get commune-level totals,
  * then aggregates across communes for a canton-wide result.
@@ -135,7 +150,7 @@ async function fetchVoteRows(
 ): Promise<BsVotingRecord[]> {
   // We fetch more rows than `limit` to handle aggregation
   const fetchLimit = Math.min(limit * 30, 500);
-  const where = `wahllok_name like "%Total%" AND result_art="Schlussresultat"${extraWhere ? " AND " + extraWhere : ""}`;
+  const where = `wahllok_name like "*Total*" AND result_art="Schlussresultat"${extraWhere ? " AND " + extraWhere : ""}`;
 
   const url = buildUrl(BS_BASE, {
     limit: fetchLimit,
@@ -252,7 +267,7 @@ export async function handleSearchVotes(params: {
   const limit = Math.min(params.limit ?? 5, 20);
   const keyword = params.query.trim();
 
-  const extraWhere = `abst_titel like "%${keyword}%"`;
+  const extraWhere = odsqlContains("abst_titel", keyword);
   const rows = await fetchVoteRows(extraWhere, limit);
   const votes = aggregateVotes(rows).slice(0, limit);
 
@@ -285,15 +300,15 @@ export async function handleGetVoteDetails(params: {
   }
 
   const conditions: string[] = [
-    `wahllok_name like "%Total%"`,
+    `wahllok_name like "*Total*"`,
     `result_art="Schlussresultat"`,
   ];
 
   if (params.vote_title) {
-    conditions.push(`abst_titel like "%${params.vote_title.trim()}%"`);
+    conditions.push(odsqlContains("abst_titel", params.vote_title.trim()));
   }
   if (params.date) {
-    conditions.push(`abst_datum_text="${params.date.trim()}"`);
+    conditions.push(`abst_datum_text=${odsqlString(params.date.trim())}`);
   }
 
   const where = conditions.join(" AND ");

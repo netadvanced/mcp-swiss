@@ -154,7 +154,7 @@ describe('httpFetch', () => {
 
   it('derives the User-Agent from package.json', () => {
     expect(VERSION).toMatch(/^\d+\.\d+\.\d+/);
-    expect(USER_AGENT).toBe(`mcp-swiss/${VERSION}`);
+    expect(USER_AGENT).toBe(`mcp-swiss-ng/${VERSION}`);
   });
 
   it('honours a per-call timeoutMs and does not forward it to fetch', async () => {

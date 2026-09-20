@@ -164,7 +164,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     case "get_weather": {
       const url = buildUrl(`${BASE}/smn/latest`, {
         locations: args.station as string,
-        app: "mcp-swiss",
+        app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
@@ -187,7 +187,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     }
 
     case "list_weather_stations": {
-      const url = buildUrl(`${BASE}/smn/locations`, { app: "mcp-swiss" });
+      const url = buildUrl(`${BASE}/smn/locations`, { app: "mcp-swiss-ng" });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = (data?.payload ?? {}) as Record<string, StationEntry>;
       const stations = compactWeatherStations(payload);
@@ -199,7 +199,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
         locations: args.station as string,
         startdt: args.start_date as string,
         enddt: args.end_date as string,
-        app: "mcp-swiss",
+        app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
@@ -214,7 +214,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     case "get_water_level": {
       const url = buildUrl(`${BASE}/hydro/latest`, {
         locations: args.station as string,
-        app: "mcp-swiss",
+        app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);
@@ -227,7 +227,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
     }
 
     case "list_hydro_stations": {
-      const url = buildUrl(`${BASE}/hydro/locations`, { app: "mcp-swiss" });
+      const url = buildUrl(`${BASE}/hydro/locations`, { app: "mcp-swiss-ng" });
       const data = await fetchJSON<ApiResponse>(url);
       const payload = (data?.payload ?? {}) as Record<string, StationEntry>;
       const stations = compactHydroStations(payload);
@@ -239,7 +239,7 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
         locations: args.station as string,
         startdt: args.start_date as string,
         enddt: args.end_date as string,
-        app: "mcp-swiss",
+        app: "mcp-swiss-ng",
         version: VERSION,
       });
       const data = await fetchJSON<ApiResponse>(url);

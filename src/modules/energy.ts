@@ -5,7 +5,7 @@
 import { httpFetch } from "../utils/http.js";
 
 const GRAPHQL_URL = "https://www.strompreis.elcom.admin.ch/api/graphql";
-const CURRENT_YEAR = String(new Date().getFullYear());
+const currentYear = (): string => String(new Date().getFullYear());
 
 // ── Category reference ───────────────────────────────────────────────────────
 // H = Household, C = Commercial
@@ -204,7 +204,7 @@ export async function handleEnergy(
     case "get_electricity_tariff": {
       const municipality = args.municipality as string;
       const category = (args.category as string | undefined) ?? "H4";
-      const year = (args.year as string | undefined) ?? CURRENT_YEAR;
+      const year = (args.year as string | undefined) ?? currentYear();
 
       if (!municipality?.trim()) {
         throw new Error("municipality is required. Use search_municipality_energy to find the BFS number.");
@@ -256,7 +256,7 @@ export async function handleEnergy(
     case "compare_electricity_tariffs": {
       const municipalities = args.municipalities as string[];
       const category = (args.category as string | undefined) ?? "H4";
-      const year = (args.year as string | undefined) ?? CURRENT_YEAR;
+      const year = (args.year as string | undefined) ?? currentYear();
 
       if (!Array.isArray(municipalities) || municipalities.length < 2) {
         throw new Error("At least 2 municipality IDs are required for comparison.");

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { handleGeodata } from '../../src/modules/geodata.js';
+import { handleGeodata, geodataTools } from '../../src/modules/geodata.js';
 import {
   mockGeocodeResponse,
   mockIdentifyResponse,
@@ -107,6 +107,23 @@ describe('search_places', () => {
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     const parsed = new URL(calledUrl);
     expect(parsed.searchParams.get('searchText')).toBe('Matterhorn');
+  });
+
+  it("always searches type=locations (featuresearch needs a layer and 400s)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200, statusText: 'OK',
+      json: () => Promise.resolve(mockGeocodeResponse),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await handleGeodata('search_places', { query: 'Bern', type: 'featuresearch' });
+    const parsed = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(parsed.searchParams.get('type')).toBe('locations');
+  });
+
+  it("does not advertise a type parameter", () => {
+    const tool = geodataTools.find((t) => t.name === 'search_places')!;
+    const schema = tool.inputSchema as { properties: Record<string, unknown> };
+    expect(schema.properties.type).toBeUndefined();
   });
 });
 

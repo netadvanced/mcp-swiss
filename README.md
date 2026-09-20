@@ -150,8 +150,8 @@ That's it — Claude Code will use it in your next session.
 
 #### One-click Install
 
-[<img src="https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522mcp-swiss%2522%255D%257D)
-[<img src="https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders">](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522mcp-swiss%2522%255D%257D)
+[<img src="https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522github%253Anetadvanced%252Fmcp-swiss-ng%2522%255D%257D)
+[<img src="https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders">](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522github%253Anetadvanced%252Fmcp-swiss-ng%2522%255D%257D)
 
 #### CLI Install
 
@@ -320,13 +320,17 @@ List available: `npx -y github:netadvanced/mcp-swiss-ng --list-modules` or `npx 
 Run one shared server and point clients at a URL — needed for claude.ai (web), ChatGPT connectors and any remote MCP client.
 
 ```bash
-npx -y github:netadvanced/mcp-swiss-ng --http --port 3000             # listens on 127.0.0.1
+# local only, no extra configuration
+npx -y github:netadvanced/mcp-swiss-ng --http --port 3000
+
+# reachable from outside: token and Host allow-list are mandatory
 docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
-  -e MCP_AUTH_TOKEN=change-me ghcr.io/netadvanced/mcp-swiss-ng     # container
+  -e MCP_AUTH_TOKEN=change-me -e MCP_ALLOWED_HOSTS=mcp.example.ch:3000 \
+  ghcr.io/netadvanced/mcp-swiss-ng
 ```
 
 - MCP endpoint: `http://<host>:3000/mcp` (Streamable HTTP, sessions via `Mcp-Session-Id`)
-- Health check: `GET /health` → `{"status":"ok","version":"…","sessions":N}`
+- Health check: `GET /health` → `{"status":"ok","version":"…"}`, plus `sessions` on a loopback bind
 - A ready-made [`docker-compose.example.yml`](docker-compose.example.yml) includes a healthcheck.
 
 | Setting | Flag | Env | Default |
@@ -337,9 +341,14 @@ docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
 | Bearer token for `/mcp` | — | `MCP_AUTH_TOKEN` | none |
 | Allowed `Host` headers (DNS-rebinding protection) | — | `MCP_ALLOWED_HOSTS` (comma list) | loopback only when bound to loopback |
 | CORS origin for browser clients | — | `MCP_CORS_ORIGIN` | none |
+| Max concurrent sessions | — | `MCP_MAX_SESSIONS` | `64` |
 | Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `30000` |
 
-Each session gets its own server instance; idle sessions are dropped after 30 minutes. All data is public, but **set `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` whenever the port is reachable from outside**, or anyone can spend your outbound quota on the upstream APIs.
+Each session gets its own server instance. Idle sessions are dropped after 30 minutes (a session with an open event stream is kept), further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
+
+**The server refuses to start on a non-loopback address unless `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are both set.** The data is public, but an open server is an open proxy onto the upstream APIs, on your IP and their rate limits. Behind a reverse proxy, put the public hostname (with port, if it isn't the default) in `MCP_ALLOWED_HOSTS`.
+
+A client that wants `notifications/tools/list_changed` — for example in discovery mode — must keep the `GET /mcp` event stream open. Without it the notification is dropped; `swiss_discover` also returns the new schemas in its response, and `swiss_call` can run them meanwhile.
 
 Client config for a remote server (Claude Code shown):
 

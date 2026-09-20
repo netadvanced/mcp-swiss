@@ -106,7 +106,7 @@ describe('get_electricity_tariff', () => {
     expect(result.note).toContain('Rappen');
   });
 
-  it('uses default category H4 and year 2026', async () => {
+  it('uses default category H4 and the current year', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true, status: 200,
       json: () => Promise.resolve({ data: mockObservationsZurich }),
@@ -115,7 +115,7 @@ describe('get_electricity_tariff', () => {
     await handleEnergy('get_electricity_tariff', { municipality: '261' });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.variables.filters.category).toEqual(['H4']);
-    expect(body.variables.filters.period).toEqual(['2026']);
+    expect(body.variables.filters.period).toEqual([String(new Date().getFullYear())]);
   });
 
   it('accepts custom category and year', async () => {
@@ -213,7 +213,7 @@ describe('compare_electricity_tariffs', () => {
     expect(result.source).toContain('elcom.admin.ch');
   });
 
-  it('uses default H4 category and 2026 year', async () => {
+  it('uses default H4 category and the current year', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true, status: 200,
       json: () => Promise.resolve({ data: mockObservationsMultiple }),
@@ -222,7 +222,7 @@ describe('compare_electricity_tariffs', () => {
     await handleEnergy('compare_electricity_tariffs', { municipalities: ['261', '351'] });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.variables.filters.category).toEqual(['H4']);
-    expect(body.variables.filters.period).toEqual(['2026']);
+    expect(body.variables.filters.period).toEqual([String(new Date().getFullYear())]);
     expect(body.variables.filters.municipality).toEqual(['261', '351']);
   });
 

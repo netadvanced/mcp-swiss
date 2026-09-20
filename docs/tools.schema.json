@@ -291,14 +291,6 @@
         "properties": {
           "query": {
             "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "locations",
-              "featuresearch"
-            ],
-            "default": "locations"
           }
         }
       }

@@ -4,7 +4,12 @@ import type { Server as HttpServer } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-import { startHttpServer, defaultAllowedHosts, type HttpServerOptions } from "../../src/http-server.js";
+import {
+  startHttpServer,
+  defaultAllowedHosts,
+  publicBindProblems,
+  type HttpServerOptions,
+} from "../../src/http-server.js";
 import { createServer } from "../../src/server.js";
 import { resolveModules } from "../../src/registry.js";
 
@@ -138,12 +143,88 @@ describe("HTTP transport", () => {
     expect(res.headers.get("access-control-expose-headers")).toContain("Mcp-Session-Id");
   });
 
-  it("expires idle sessions", async () => {
+  it("expires idle sessions without an open stream", async () => {
     const base = await start({ sessionTtlMs: 50 });
-    await connectClient(base);
+    const res = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+    expect(res.headers.get("mcp-session-id")).toBeTruthy();
+    await res.text();
     expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(1);
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 250));
     expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(0);
+  });
+
+  it("keeps a session with an open event stream alive", async () => {
+    const base = await start({ sessionTtlMs: 50 });
+    const { client } = await connectClient(base); // the SDK client holds a GET stream
+    await new Promise((r) => setTimeout(r, 250));
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(1);
+    // still usable, i.e. the sweeper did not close it underneath us
+    expect((await client.listTools()).tools.length).toBeGreaterThan(0);
+  });
+
+  it("caps concurrent sessions with 429 + Retry-After", async () => {
+    const base = await start({ maxSessions: 2 });
+    for (let i = 0; i < 2; i++) {
+      const ok = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+      expect(ok.status).toBe(200);
+      await ok.text();
+    }
+    const denied = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+    expect(denied.status).toBe(429);
+    expect(denied.headers.get("retry-after")).toBe("60");
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(2);
+  });
+
+  it("returns 413 for an oversized body", async () => {
+    const base = await start();
+    const res = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: mcpHeaders,
+      body: "x".repeat(1_100_000),
+    });
+    expect(res.status).toBe(413);
+  });
+
+  it("hides internal errors behind a generic 500", async () => {
+    const base = await start({
+      createMcpServer: () => {
+        throw new Error("secret internal detail");
+      },
+    });
+    const res = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain("secret internal detail");
+  });
+
+  it("omits the session count from /health when asked", async () => {
+    const base = await start({ exposeSessionCount: false });
+    expect(await (await fetch(`${base}/health`)).json()).toEqual({
+      status: "ok",
+      version: expect.any(String),
+    });
+  });
+});
+
+describe("publicBindProblems", () => {
+  it("allows a loopback bind with no token or allow-list", () => {
+    expect(publicBindProblems({ host: "127.0.0.1" })).toEqual([]);
+    expect(publicBindProblems({ host: "localhost" })).toEqual([]);
+  });
+
+  it("requires a token and an allow-list on a public bind", () => {
+    expect(publicBindProblems({ host: "0.0.0.0" })).toEqual([
+      "MCP_AUTH_TOKEN is not set",
+      "MCP_ALLOWED_HOSTS is not set",
+    ]);
+    expect(publicBindProblems({ host: "0.0.0.0", authToken: "t" })).toEqual([
+      "MCP_ALLOWED_HOSTS is not set",
+    ]);
+    expect(publicBindProblems({ host: "0.0.0.0", authToken: "t", allowedHosts: [] })).toEqual([
+      "MCP_ALLOWED_HOSTS is not set",
+    ]);
+    expect(
+      publicBindProblems({ host: "0.0.0.0", authToken: "t", allowedHosts: ["mcp.example.ch:3000"] })
+    ).toEqual([]);
   });
 });
 

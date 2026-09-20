@@ -49,4 +49,12 @@ We don't guarantee specific response timelines, but we take security seriously a
 
 ## Notes
 
-mcp-swiss-ng handles **no credentials, tokens, or personal data**. All upstream APIs are public Swiss open data. The tool runs locally via stdio — it does not expose any network port or server.
+All upstream APIs are public Swiss open data, so the server stores no personal data and needs no API keys.
+
+By default it runs locally over stdio and opens no port. With `--http` (or `MCP_TRANSPORT=http`) it listens on 127.0.0.1 and serves `/mcp` and `/health`. What to know before exposing it:
+
+- Binding to a non-loopback address requires `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS`; the server refuses to start otherwise. `MCP_AUTH_TOKEN` is the one secret it handles — pass it through the environment, not the command line.
+- `MCP_ALLOWED_HOSTS` is the Host allow-list behind the SDK's DNS-rebinding protection. On a loopback bind it defaults to loopback names.
+- Sessions are capped (`MCP_MAX_SESSIONS`, default 64) and dropped after 30 minutes idle. Request bodies are capped at 1 MB.
+- `MCP_CORS_ORIGIN` is off by default. Setting it to `*` lets any web page reach the server through a visitor's browser.
+- An open server is an open proxy onto the upstream Swiss APIs, using your IP and their rate limits.

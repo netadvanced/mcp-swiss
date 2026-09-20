@@ -40,7 +40,21 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - `src/index.ts` split into `registry`, `config`, `server`, `http-server`; importing modules no longer starts a server
 - vitest 5, eslint 10.11, GitHub Actions v7; TypeScript stays on 6.x until typescript-eslint supports 7
 
+### Security
+- HTTP mode refuses to start on a non-loopback address unless both `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are set. Without them the SDK's DNS-rebinding protection is off and the server is an open proxy onto the upstream APIs
+- Concurrent sessions are capped (`MCP_MAX_SESSIONS`, default 64) and answered with `429` + `Retry-After` beyond it. Previously each `initialize` allocated a server with no limit (~294 MB for 3000 sessions, held for the 30-minute idle window)
+- Request bodies over 1 MB return `413`; other internal errors return a generic `500` instead of the exception message
+- `/health` reports the session count only on a loopback bind
+- Search terms are escaped before going into Basel-Stadt ODSQL filters (`voting`); a quote used to break the query or widen the filter
+- SECURITY.md described a stdio-only tool that opens no port
+
 ### Fixed
+- Sessions with an open event stream are no longer closed by the idle sweeper
+- `search_places` advertised `type: "featuresearch"`, which always returned HTTP 400 because the tool sends no layer; the parameter is gone
+- User-Agent and the existenz.ch `app` parameter still said `mcp-swiss`
+- VS Code one-click install buttons still installed upstream's npm package
+- `energy` worked out the current year once at startup, so a long-running server kept using last year's tariffs
+- The release workflow ran the develop version bump in the same job as the release, so a bump failure skipped the Docker image and the .mcpb bundle
 - Build broken on upstream `develop` since the TypeScript 6 bump (`types: ["node"]` missing from tsconfig)
 - `get_snow_measurements` for study plots returns an empty result with an explanation off-season instead of an HTTP 404 error
 - `energy` tools defaulted to tariff year 2026 forever; now the current year

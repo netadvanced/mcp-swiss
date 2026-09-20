@@ -119,7 +119,6 @@ export const geodataTools = [
       required: ["query"],
       properties: {
         query: { type: "string" },
-        type: { type: "string", enum: ["locations", "featuresearch"], default: "locations" },
       },
     },
   },
@@ -169,7 +168,7 @@ export async function handleGeodata(name: string, args: Record<string, unknown>)
     case "search_places": {
       const url = buildUrl(`${BASE}/rest/services/api/SearchServer`, {
         searchText: args.address as string ?? args.query as string,
-        type: args.type as string ?? "locations",
+        type: "locations",
         sr: 4326,
         limit: 10,
       });

@@ -19,15 +19,24 @@ export interface HttpServerOptions {
   corsOrigin?: string;
   /** Idle sessions are closed after this many ms (default 30 min). */
   sessionTtlMs?: number;
+  /** Maximum concurrent sessions before /mcp answers 429 (default 64). */
+  maxSessions?: number;
+  /** Include the session count in /health (default true; off for public binds). */
+  exposeSessionCount?: boolean;
 }
 
 interface Session {
   transport: StreamableHTTPServerTransport;
   server: Server;
   lastSeen: number;
+  /** Open SSE streams; a session with one is never swept as idle. */
+  openStreams: number;
 }
 
 const MAX_BODY_BYTES = 1_000_000;
+const DEFAULT_MAX_SESSIONS = 64;
+
+class BodyTooLargeError extends Error {}
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -43,7 +52,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new Error("Request body too large");
+    if (size > MAX_BODY_BYTES) throw new BodyTooLargeError(`Request body exceeds ${MAX_BODY_BYTES} bytes`);
     chunks.push(chunk as Buffer);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
@@ -56,11 +65,35 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return presented.length === expected.length && timingSafeEqual(presented, expected);
 }
 
+const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "::1"];
+
+export function isLoopbackBind(host: string): boolean {
+  return LOOPBACK_HOSTS.includes(host);
+}
+
 /** Default Host allow-list when bound to loopback, so a local server can't be DNS-rebound. */
 export function defaultAllowedHosts(host: string, port: number): string[] | undefined {
-  const loopback = ["127.0.0.1", "localhost", "::1"];
-  if (!loopback.includes(host)) return undefined;
+  if (!isLoopbackBind(host)) return undefined;
   return [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`];
+}
+
+export interface PublicBindOptions {
+  host: string;
+  authToken?: string;
+  allowedHosts?: string[];
+}
+
+/**
+ * A server reachable from outside must have a token and a Host allow-list:
+ * without them anyone can use it as a proxy onto the Swiss APIs, and the SDK's
+ * DNS-rebinding protection is off. Returns the reasons it must not start.
+ */
+export function publicBindProblems({ host, authToken, allowedHosts }: PublicBindOptions): string[] {
+  if (isLoopbackBind(host)) return [];
+  const problems: string[] = [];
+  if (!authToken) problems.push("MCP_AUTH_TOKEN is not set");
+  if (!allowedHosts?.length) problems.push("MCP_ALLOWED_HOSTS is not set");
+  return problems;
 }
 
 /**
@@ -72,6 +105,7 @@ export function defaultAllowedHosts(host: string, port: number): string[] | unde
 export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
   const sessions = new Map<string, Session>();
   const ttl = opts.sessionTtlMs ?? 30 * 60_000;
+  const maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS;
 
   const closeSession = (id: string) => {
     const s = sessions.get(id);
@@ -83,7 +117,9 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
 
   const sweeper = setInterval(() => {
     const cutoff = Date.now() - ttl;
-    for (const [id, s] of sessions) if (s.lastSeen < cutoff) closeSession(id);
+    for (const [id, s] of sessions) {
+      if (s.openStreams === 0 && s.lastSeen < cutoff) closeSession(id);
+    }
   }, Math.min(ttl, 60_000));
   sweeper.unref();
 
@@ -100,11 +136,24 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
       const session = sessions.get(sessionId);
       if (!session) return rpcError(res, 404, "Session not found");
       session.lastSeen = Date.now();
+      if (req.method === "GET") {
+        // Long-lived SSE stream: keep the session out of the idle sweep.
+        session.openStreams += 1;
+        res.on("close", () => {
+          session.openStreams = Math.max(0, session.openStreams - 1);
+          session.lastSeen = Date.now();
+        });
+      }
       return session.transport.handleRequest(req, res, body);
     }
 
     if (req.method !== "POST" || !isInitializeRequest(body)) {
       return rpcError(res, 400, "Bad Request: no valid session ID provided");
+    }
+
+    if (sessions.size >= maxSessions) {
+      res.setHeader("Retry-After", "60");
+      return rpcError(res, 429, `Too many sessions (limit ${maxSessions}); retry later`);
     }
 
     const server = opts.createMcpServer();
@@ -113,7 +162,7 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
       enableDnsRebindingProtection: Boolean(opts.allowedHosts?.length),
       allowedHosts: opts.allowedHosts,
       onsessioninitialized: (id) => {
-        sessions.set(id, { transport, server, lastSeen: Date.now() });
+        sessions.set(id, { transport, server, lastSeen: Date.now(), openStreams: 0 });
       },
       onsessionclosed: (id) => closeSession(id),
     });
@@ -136,13 +185,19 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
     }
 
     if (url.pathname === "/health" && req.method === "GET") {
-      return sendJson(res, 200, { status: "ok", version: VERSION, sessions: sessions.size });
+      // Session count only on loopback: on a public bind it is a free DoS gauge.
+      const body: Record<string, unknown> = { status: "ok", version: VERSION };
+      if (opts.exposeSessionCount ?? true) body.sessions = sessions.size;
+      return sendJson(res, 200, body);
     }
 
     if (url.pathname === "/mcp") {
       handleMcp(req, res).catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!res.headersSent) rpcError(res, message.includes("JSON") ? 400 : 500, message);
+        if (res.headersSent) return;
+        if (err instanceof BodyTooLargeError) return rpcError(res, 413, err.message);
+        if (err instanceof SyntaxError) return rpcError(res, 400, "Invalid JSON in request body");
+        process.stderr.write(`/mcp error: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
+        rpcError(res, 500, "Internal server error");
       });
       return;
     }
