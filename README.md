@@ -542,7 +542,7 @@ Once connected, try asking your AI:
 | Tool | Description |
 |------|-------------|
 | `search_dams` | Search Swiss federal dams by name or keyword |
-| `get_dams_by_canton` | List all federal dams in a canton |
+| `get_dams_by_canton` | List the federally supervised dams in a canton |
 | `get_dam_details` | Detailed info on a specific dam (height, volume, purpose) |
 
 ### 🥾 Hiking / Trail Closures (2 tools)
@@ -558,7 +558,7 @@ Once connected, try asking your AI:
 |------|-------------|
 | `get_property_price_index` | BFS residential property price index (IMPI), quarterly |
 | `search_real_estate_data` | Search BFS real estate datasets on opendata.swiss |
-| `get_rent_index` | Swiss rent index and housing cost data from BFS |
+| `get_rent_index` | Swiss consumer price index (incl. rents), monthly |
 
 ### 🚗 Traffic / ASTRA (3 tools)
 

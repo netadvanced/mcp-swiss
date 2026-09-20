@@ -8,6 +8,7 @@ const BASE = "https://api3.geo.admin.ch/rest/services/api/MapServer";
 const DAMS_LAYER = "ch.bfe.stauanlagen-bundesaufsicht";
 const CANTON_LAYER = "ch.swisstopo.swissboundaries3d-kanton-flaeche.fill";
 const MAX_RESULTS = 20;
+const MAX_LIMIT = 100;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ interface DamCanton {
 
 // ── Caches ───────────────────────────────────────────────────────────────────
 
-/** The layer holds ~200 dams; fetching it once per process keeps canton lookups cheap. */
+/** The layer holds a couple of hundred dams; fetching it once per process keeps canton lookups cheap. */
 let allDamsCache: DamFindResult[] | null = null;
 const cantonByFeature = new Map<number, DamCanton>();
 
@@ -253,10 +254,49 @@ async function findDams(searchText: string, searchField: string, withGeometry = 
   return data.results ?? [];
 }
 
-/** Every dam in the layer, with geometry. Cached — the layer is ~200 rows. */
+/** api3 never returns more than this many features in one response, whatever the endpoint. */
+const PAGE_SIZE = 201;
+/** Stops the paging loop if the endpoint ever ignores `offset`. */
+const MAX_PAGES = 25;
+/** Switzerland in LV95, padded well past the national border. */
+const CH_EXTENT = "2450000,1050000,2870000,1320000";
+
+function damsIdentifyUrl(offset: number): string {
+  return buildUrl(`${BASE}/identify`, {
+    geometry: CH_EXTENT,
+    geometryType: "esriGeometryEnvelope",
+    layers: `all:${DAMS_LAYER}`,
+    mapExtent: CH_EXTENT,
+    imageDisplay: "100,100,96",
+    tolerance: 0,
+    sr: 2056,
+    returnGeometry: true,
+    offset,
+  });
+}
+
+/**
+ * Every dam in the layer, with geometry. Cached for the lifetime of the process.
+ *
+ * `find` is no good here: it stops at 201 rows sorted by name and the layer has more,
+ * so everything from "Le Chalet" onwards fell off the list. `identify` over a
+ * Switzerland-wide envelope honours `offset`, so page it and merge by feature id.
+ * Pages overlap by one row, so a row cannot slip through a page boundary.
+ */
 async function loadAllDams(): Promise<DamFindResult[]> {
   if (allDamsCache) return allDamsCache;
-  allDamsCache = await findDams("%", "damname", true);
+
+  const byId = new Map<number, DamFindResult>();
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const data = await fetchJSON<DamFindResponse>(damsIdentifyUrl(page * (PAGE_SIZE - 1)), {
+      timeoutMs: 60_000,
+    });
+    const results = data.results ?? [];
+    for (const dam of results) byId.set(dam.featureId, dam);
+    if (results.length < PAGE_SIZE) break;
+  }
+
+  allDamsCache = [...byId.values()];
   return allDamsCache;
 }
 
@@ -282,7 +322,7 @@ export const damsTools = [
   {
     name: "get_dams_by_canton",
     description:
-      "Federally supervised dams in a canton (max 20)",
+      "Federally supervised dams in a canton",
     inputSchema: {
       type: "object",
       required: ["canton"],
@@ -291,6 +331,11 @@ export const damsTools = [
           type: "string",
           description:
             "Canton code, e.g. VS",
+        },
+        limit: {
+          type: "number",
+          description: "Dams to return (1-100)",
+          default: 20,
         },
       },
     },
@@ -376,6 +421,10 @@ export async function handleDams(
         throw new Error("canton must be a 2-letter Swiss canton code (e.g. 'VS', 'GR', 'BE', 'ZH')");
       }
 
+      const limit = args.limit == null
+        ? MAX_RESULTS
+        : Math.min(Math.max(Math.trunc(Number(args.limit)) || MAX_RESULTS, 1), MAX_LIMIT);
+
       const bbox = await fetchCantonBbox(cantonCode);
       if (!bbox) {
         throw new Error(`Unknown canton code: "${cantonCode}". Use standard 2-letter Swiss canton abbreviations (VS, GR, BE, UR, TI, VD, etc.)`);
@@ -403,11 +452,11 @@ export async function handleDams(
           dams: [],
           count: 0,
           message: `No dams found in canton ${cantonCode}. This canton may not have any dams under federal supervision.`,
-          source: `${BASE}/find?layer=${DAMS_LAYER}`,
+          source: `${BASE}/identify?layers=all:${DAMS_LAYER}`,
         }, null, 2);
       }
 
-      const limited = cantonDams.slice(0, MAX_RESULTS);
+      const limited = cantonDams.slice(0, limit);
       const formatted = limited.map((dam) => formatDamSummary(dam, cantonOf.get(dam.featureId)));
 
       const response = {
@@ -415,10 +464,10 @@ export async function handleDams(
         dams: formatted,
         count: formatted.length,
         total_in_canton: cantonDams.length,
-        note: cantonDams.length > MAX_RESULTS
-          ? `Showing first ${MAX_RESULTS} of ${cantonDams.length} dams in canton ${cantonCode}.`
+        note: cantonDams.length > limited.length
+          ? `Showing first ${limited.length} of ${cantonDams.length} dams in canton ${cantonCode}. Raise limit (max ${MAX_LIMIT}) for more.`
           : undefined,
-        source: `${BASE}/find?layer=${DAMS_LAYER}`,
+        source: `${BASE}/identify?layers=all:${DAMS_LAYER}`,
         canton_source: CANTON_LAYER,
       };
 
@@ -430,7 +479,7 @@ export async function handleDams(
           count: 10,
           total_in_canton: cantonDams.length,
           truncated: true,
-          source: `${BASE}/find?layer=${DAMS_LAYER}`,
+          source: `${BASE}/identify?layers=all:${DAMS_LAYER}`,
         };
         return JSON.stringify(slim, null, 2);
       }

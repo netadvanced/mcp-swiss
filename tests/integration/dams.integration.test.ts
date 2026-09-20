@@ -191,6 +191,42 @@ describe("get_dams_by_canton (live API)", () => {
     expect(result.canton_source).toContain("swissboundaries3d-kanton");
   });
 
+  it("returns the dams past the 201-row API cap", async () => {
+    // These sort alphabetically after the cut-off the find endpoint used to impose.
+    const vs = JSON.parse(
+      await handleDams("get_dams_by_canton", { canton: "VS", limit: 100 })
+    );
+    const vsNames = vs.dams.map((d: { dam_name: string }) => d.dam_name);
+    expect(vs.total_in_canton).toBeGreaterThan(40);
+    for (const name of ["Zeuzier", "Vieux Emosson", "Zermeiggern", "Vordersee"]) {
+      expect(vsNames).toContain(name);
+    }
+
+    const gr = JSON.parse(
+      await handleDams("get_dams_by_canton", { canton: "GR", limit: 100 })
+    );
+    const grNames = gr.dams.map((d: { dam_name: string }) => d.dam_name);
+    expect(grNames).toContain("Zervreila");
+    expect(grNames).toContain("Viderjoch");
+
+    const ge = JSON.parse(await handleDams("get_dams_by_canton", { canton: "GE" }));
+    expect(ge.dams.map((d: { dam_name: string }) => d.dam_name)).toContain("Verbois");
+  }, 120_000);
+
+  it("caps the list at limit and reports the canton total", async () => {
+    const result = JSON.parse(
+      await handleDams("get_dams_by_canton", { canton: "VS", limit: 5 })
+    );
+    expect(result.count).toBe(5);
+    expect(result.total_in_canton).toBeGreaterThan(5);
+    expect(result.note).toContain("of " + result.total_in_canton);
+  });
+
+  it("a canton list with limit 100 stays under 50K chars", async () => {
+    const raw = await handleDams("get_dams_by_canton", { canton: "VS", limit: 100 });
+    expect(raw.length).toBeLessThan(50000);
+  });
+
   it("dam results have required fields", async () => {
     const result = JSON.parse(
       await handleDams("get_dams_by_canton", { canton: "VS" })

@@ -236,4 +236,32 @@ describe("get_rent_index — live (Swiss CPI via data.zg.ch)", () => {
     const result = JSON.parse(await handleRealEstate("get_rent_index", {}));
     expect(result.note).toContain("get_property_price_index");
   }, 30000);
+
+  it("returns 24 months ending on the store's last row", async () => {
+    // The store gains a month at a time; the window has to follow it.
+    const result = JSON.parse(await handleRealEstate("get_rent_index", {}));
+    expect(result.data_points).toBe(24);
+    const coverageEnd = result.coverage.split("–")[1].trim();
+    expect(`${result.latest.month} ${result.latest.year}`).toBe(coverageEnd);
+    expect(result.latest.year).toBeGreaterThanOrEqual(new Date().getFullYear() - 1);
+  }, 30000);
+
+  it("reports coverage starting at the first published month", async () => {
+    const result = JSON.parse(await handleRealEstate("get_rent_index", {}));
+    expect(result.coverage).toMatch(/^Dezember 1982 – \S+ \d{4}$/);
+    expect(result.baseline).toBe("Dezember 1982 = 100");
+  }, 30000);
+
+  it("returns the full year 2022 without offset arithmetic", async () => {
+    const result = JSON.parse(await handleRealEstate("get_rent_index", { year: 2022 }));
+    expect(result.series).toHaveLength(12);
+    expect(result.series[0].month).toBe("Januar");
+    expect(result.series[11].month).toBe("Dezember");
+  }, 30000);
+
+  it("quotes the real coverage when a year is out of range", async () => {
+    await expect(
+      handleRealEstate("get_rent_index", { year: 1970 })
+    ).rejects.toThrow(/No CPI data for year 1970\. The series covers Dezember 1982 – /);
+  }, 30000);
 });

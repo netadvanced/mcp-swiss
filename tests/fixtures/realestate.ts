@@ -105,80 +105,36 @@ export const mockCkanSearchFailed = {
 
 // ── CPI / Rent index data ────────────────────────────────────────────────────
 
-export const mockCpiLatest = {
-  resultCount: 515,
-  offset: 491,
-  limit: 24,
-  results: [
-    { jahr: "2023", monat: "Januar", index: "167.2" },
-    { jahr: "2023", monat: "Februar", index: "167.5" },
-    { jahr: "2023", monat: "März", index: "167.9" },
-    { jahr: "2023", monat: "April", index: "168.1" },
-    { jahr: "2023", monat: "Mai", index: "168.3" },
-    { jahr: "2023", monat: "Juni", index: "168.4" },
-    { jahr: "2023", monat: "Juli", index: "168.3" },
-    { jahr: "2023", monat: "August", index: "168.3" },
-    { jahr: "2023", monat: "September", index: "168.0" },
-    { jahr: "2023", monat: "Oktober", index: "167.8" },
-    { jahr: "2023", monat: "November", index: "167.7" },
-    { jahr: "2023", monat: "Dezember", index: "167.6" },
-    { jahr: "2024", monat: "Januar", index: "168.8" },
-    { jahr: "2024", monat: "Februar", index: "169.5" },
-    { jahr: "2024", monat: "März", index: "169.8" },
-    { jahr: "2024", monat: "April", index: "169.9" },
-    { jahr: "2024", monat: "Mai", index: "170.1" },
-    { jahr: "2024", monat: "Juni", index: "170.4" },
-    { jahr: "2024", monat: "Juli", index: "170.4" },
-    { jahr: "2024", monat: "August", index: "170.2" },
-    { jahr: "2024", monat: "September", index: "169.9" },
-    { jahr: "2024", monat: "Oktober", index: "169.4" },
-    { jahr: "2024", monat: "November", index: "169.2" },
-    { jahr: "2024", monat: "Dezember", index: "169.0" },
-  ],
-};
+export interface CpiRow {
+  jahr: string;
+  monat: string;
+  index: string;
+}
 
-export const mockCpiYear2020 = {
-  resultCount: 515,
-  offset: 445,
-  limit: 12,
-  results: [
-    { jahr: "2020", monat: "Januar", index: "161.9" },
-    { jahr: "2020", monat: "Februar", index: "162.0" },
-    { jahr: "2020", monat: "März", index: "162.1" },
-    { jahr: "2020", monat: "April", index: "161.8" },
-    { jahr: "2020", monat: "Mai", index: "161.5" },
-    { jahr: "2020", monat: "Juni", index: "161.8" },
-    { jahr: "2020", monat: "Juli", index: "161.7" },
-    { jahr: "2020", monat: "August", index: "161.8" },
-    { jahr: "2020", monat: "September", index: "161.5" },
-    { jahr: "2020", monat: "Oktober", index: "161.5" },
-    { jahr: "2020", monat: "November", index: "161.4" },
-    { jahr: "2020", monat: "Dezember", index: "161.5" },
-    // adjacent year rows that will be filtered out
-    { jahr: "2019", monat: "Dezember", index: "160.5" },
-    { jahr: "2021", monat: "Januar", index: "162.5" },
-  ],
-};
+const CPI_MONTHS = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
+];
 
-export const mockCpiNoData = {
-  resultCount: 515,
-  offset: 0,
-  limit: 12,
-  results: [
-    { jahr: "1982", monat: "Dezember", index: "100" },
-    { jahr: "1983", monat: "Januar", index: "99.9" },
-  ],
-};
-
-export const mockCpiSmall = {
-  resultCount: 515,
-  offset: 503,
-  limit: 12,
-  results: [
-    { jahr: "2024", monat: "Januar", index: "168.8" },
-    { jahr: "2024", monat: "Februar", index: "169.5" },
-  ],
-};
+/**
+ * Stand-in for the Canton Zug CPI store: Dec 1982, then 2020–2024 in full and
+ * 2025 up to October, the way the real store trails the current month.
+ */
+export const cpiStoreRows: CpiRow[] = [
+  { jahr: "1982", monat: "Dezember", index: "100" },
+  ...[2020, 2021, 2022, 2023, 2024].flatMap((year) =>
+    CPI_MONTHS.map((monat, i) => ({
+      jahr: String(year),
+      monat,
+      index: (160 + (year - 2020) * 2 + i * 0.1).toFixed(1),
+    }))
+  ),
+  ...CPI_MONTHS.slice(0, 10).map((monat, i) => ({
+    jahr: "2025",
+    monat,
+    index: (170 + i * 0.1).toFixed(1),
+  })),
+];
 
 // ── IMPI (BFS residential property price index) ──────────────────────────────
 
