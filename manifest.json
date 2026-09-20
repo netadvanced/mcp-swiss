@@ -286,7 +286,7 @@
     },
     {
       "name": "get_property_price_index",
-      "description": "BFS residential property price index (SWRPI), quarterly since 2009, Q4 2019 = 100"
+      "description": "BFS residential property price index (IMPI), quarterly since 2017Q1, Q4 2019 = 100"
     },
     {
       "name": "search_real_estate_data",
