@@ -15,6 +15,8 @@
  *   - list_avalanche_regions: all SLF warning regions with IDs and locations
  */
 
+import { swissToday } from "../utils/date.js";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AvalancheTool {
@@ -65,10 +67,6 @@ const DANGER_LEVELS: Record<number, string> = {
 const SUPPORTED_LANGUAGES = ["de", "en", "fr", "it"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function bulletinPdfUrl(lang: string): string {
   // aws.slf.ch serves official PDF bulletins — publicly accessible without auth
@@ -123,7 +121,7 @@ export const avalancheTools: AvalancheTool[] = [
 
 async function handleGetAvalancheBulletin(args: Record<string, string>): Promise<string> {
   const lang = SUPPORTED_LANGUAGES.includes(args.language) ? args.language : "en";
-  const today = todayISO();
+  const today = swissToday();
 
   // Find matching region if specified
   let matchedRegion: typeof SWISS_AVALANCHE_REGIONS[0] | undefined;

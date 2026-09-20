@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { handleAvalanche, avalancheTools, SWISS_AVALANCHE_REGIONS } from "../../src/modules/avalanche.js";
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -77,6 +77,17 @@ describe("get_avalanche_bulletin", () => {
     expect(result.danger_scale).toBeDefined();
     expect(result.schedule).toBeDefined();
     expect(result.note).toBeTruthy();
+  });
+
+  it("dates the bulletin in Swiss time, not UTC", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T00:30:00+02:00"));
+    try {
+      const result = JSON.parse(await handleAvalanche("get_avalanche_bulletin", {}));
+      expect(result.date).toBe("2026-08-01");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns interactive_map and pdf_full URLs", async () => {

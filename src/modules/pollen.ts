@@ -55,12 +55,16 @@ const DAILY_PARAMS: Record<string, string> = {
 
 // ── CSV Helpers ───────────────────────────────────────────────────────────────
 
+// MeteoSwiss serves these files as bare "text/csv" but the bytes are
+// ISO-8859-1, so response.text() (UTF-8) mangles Genève and Zürich.
+const csvDecoder = new TextDecoder("iso-8859-1");
+
 async function fetchCSV(url: string): Promise<string> {
   const response = await httpFetch(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
   }
-  return response.text();
+  return csvDecoder.decode(await response.arrayBuffer());
 }
 
 function parseCSV(csv: string): Record<string, string>[] {
@@ -89,12 +93,50 @@ function normalizeStation(station: string): string {
   return station.trim().toUpperCase();
 }
 
-// ── Known pollen stations (for validation) ───────────────────────────────────
+// ── Pollen stations ──────────────────────────────────────────────────────────
 
-const VALID_STATIONS = new Set([
-  "PBE", "PBS", "PBU", "PCF", "PDS", "PGE", "PJU", "PLO",
+/**
+ * Station codes for the tool schema, which has to be static. MeteoSwiss retires
+ * sites, so the codes a call is checked against come from the live station list
+ * below, not from here.
+ */
+const STATION_CODES = [
+  "PBE", "PBS", "PBU", "PCF", "PDS", "PGE", "PLO",
   "PLS", "PLU", "PLZ", "PMU", "PNE", "PPY", "PSN", "PZH",
-]);
+];
+
+const STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+let _stationCodes: Set<string> | null = null;
+let _stationCodesAt = 0;
+
+/** Clear the cached station list (for testing) */
+export function clearPollenCache(): void {
+  _stationCodes = null;
+  _stationCodesAt = 0;
+}
+
+async function publishedStations(): Promise<Set<string>> {
+  if (_stationCodes && Date.now() - _stationCodesAt < STATIONS_CACHE_TTL_MS) return _stationCodes;
+
+  const rows = parseCSV(await fetchCSV(`${BASE_URL}/ogd-pollen_meta_stations.csv`));
+  const codes = new Set(
+    rows.map((r) => (r.station_abbr || "").trim().toUpperCase()).filter(Boolean),
+  );
+  if (codes.size === 0) throw new Error("MeteoSwiss returned no pollen stations");
+
+  _stationCodes = codes;
+  _stationCodesAt = Date.now();
+  return codes;
+}
+
+async function assertKnownStation(station: string): Promise<void> {
+  const codes = await publishedStations();
+  if (!codes.has(station)) {
+    throw new Error(
+      `Unknown pollen station "${station}". Valid stations: ${[...codes].sort().join(", ")}. Use list_pollen_stations for details.`,
+    );
+  }
+}
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
 
@@ -109,7 +151,7 @@ export const pollenTools = [
       properties: {
         station: {
           type: "string",
-          enum: [...VALID_STATIONS],
+          enum: STATION_CODES,
           description: "e.g. PZH Zürich, PBE Bern, PBS Basel",
         },
       },
@@ -125,7 +167,7 @@ export const pollenTools = [
       properties: {
         station: {
           type: "string",
-          enum: [...VALID_STATIONS],
+          enum: STATION_CODES,
           description: "e.g. PZH Zürich, PBE Bern",
         },
         days: {
@@ -178,11 +220,7 @@ async function getPollenCurrent(args: Record<string, unknown>): Promise<string> 
     throw new Error("station is required (e.g. PZH, PBE, PBS). Use list_pollen_stations for all codes.");
   }
   const station = normalizeStation(rawStation);
-  if (!VALID_STATIONS.has(station)) {
-    throw new Error(
-      `Unknown pollen station "${station}". Valid stations: ${[...VALID_STATIONS].join(", ")}. Use list_pollen_stations for details.`,
-    );
-  }
+  await assertKnownStation(station);
 
   const stationLower = station.toLowerCase();
   const url = `${BASE_URL}/${stationLower}/ogd-pollen_${stationLower}_h_recent.csv`;
@@ -249,11 +287,7 @@ async function getPollenDaily(args: Record<string, unknown>): Promise<string> {
     throw new Error("station is required (e.g. PZH, PBE, PBS). Use list_pollen_stations for all codes.");
   }
   const station = normalizeStation(rawStation);
-  if (!VALID_STATIONS.has(station)) {
-    throw new Error(
-      `Unknown pollen station "${station}". Valid stations: ${[...VALID_STATIONS].join(", ")}. Use list_pollen_stations for details.`,
-    );
-  }
+  await assertKnownStation(station);
 
   const rawDays = args.days as number | undefined;
   const days = Math.min(Math.max(rawDays ?? 7, 1), 90);

@@ -109,6 +109,20 @@ describe("Pollen API (live — MeteoSwiss)", () => {
     }
   });
 
+  it("station names keep their accents", async () => {
+    const result = JSON.parse(
+      await handlePollen("list_pollen_stations", {}),
+    );
+    const byCode = Object.fromEntries(
+      result.stations.map((s: { code: string; name: string }) => [s.code, s.name]),
+    );
+    expect(byCode.PZH).toBe("Zürich");
+    expect(byCode.PGE).toBe("Genève");
+    for (const s of result.stations) {
+      expect(s.name).not.toContain("�");
+    }
+  });
+
   it("canton filter works", async () => {
     const result = JSON.parse(
       await handlePollen("list_pollen_stations", { canton: "BE" }),

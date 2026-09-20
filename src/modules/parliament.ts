@@ -19,10 +19,20 @@ interface OpenParlResponse<T> {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Truncate a string response to keep under 50K chars */
-function truncate(json: string, maxBytes = 48000): string {
-  if (json.length <= maxBytes) return json;
-  return json.slice(0, maxBytes) + "…";
+const MAX_CHARS = 48000;
+
+/**
+ * Serialise a payload, dropping list entries until it fits the response budget.
+ * Cutting the JSON text instead would hand the client something it cannot parse.
+ * `build` gets the entries that survived and how many were dropped.
+ */
+function fit<T>(items: T[], build: (kept: T[], dropped: number) => unknown): string {
+  let keep = items.length;
+  for (;;) {
+    const json = JSON.stringify(build(items.slice(0, keep), items.length - keep));
+    if (json.length <= MAX_CHARS || keep === 0) return json;
+    keep = Math.max(0, Math.floor(keep * (MAX_CHARS / json.length)) - 1);
+  }
 }
 
 /** Fetch OpenParlData endpoint — follows redirects, returns typed response */
@@ -284,14 +294,13 @@ async function searchParliamentBusiness(args: {
     url: a.url_external_de,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: affairs.length,
-      total: resp.meta.total_records,
-      query: args.query,
-      affairs,
-    })
-  );
+  return fit(affairs, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    query: args.query,
+    affairs: kept,
+  }));
 }
 
 interface PersonRecord {
@@ -356,28 +365,26 @@ async function getParliamentMembers(args: {
     url: p.website_parliament_url_de,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: members.length,
-      total: resp.meta.total_records,
-      members,
-    })
-  );
+  return fit(members, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    members: kept,
+  }));
 }
 
 interface VotingRecord {
   id: number;
   affair_id: number;
-  meaning_yes_de: string;
-  meaning_no_de: string;
-  total_yes: number;
-  total_no: number;
-  total_abstain: number;
-  total_absent: number;
-  total_excused: number;
-  total_president: number;
-  vote_date: string | null;
-  subject_de: string;
+  title_de: string | null;
+  type_de: string | null;
+  meaning_of_yes_de: string | null;
+  meaning_of_no_de: string | null;
+  results_yes: number | null;
+  results_no: number | null;
+  results_abstention: number | null;
+  results_absent: number | null;
+  date: string | null;
   [key: string]: unknown;
 }
 
@@ -393,23 +400,24 @@ async function getParliamentVotes(args: {
   const votes = resp.data.map((v) => ({
     id: v.id,
     affairId: v.affair_id,
-    subject: v.subject_de,
-    meaningYes: v.meaning_yes_de,
-    meaningNo: v.meaning_no_de,
-    yes: v.total_yes,
-    no: v.total_no,
-    abstain: v.total_abstain,
-    absent: v.total_absent,
-    date: v.vote_date ? v.vote_date.split("T")[0] : null,
+    subject: v.title_de,
+    type: v.type_de,
+    meaningYes: v.meaning_of_yes_de,
+    meaningNo: v.meaning_of_no_de,
+    yes: v.results_yes,
+    no: v.results_no,
+    abstain: v.results_abstention,
+    absent: v.results_absent,
+    date: v.date ? v.date.split("T")[0] : null,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: votes.length,
-      affairId: args.affair_id,
-      votes,
-    })
-  );
+  return fit(votes, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    affairId: args.affair_id,
+    votes: kept,
+  }));
 }
 
 interface MeetingRecord {
@@ -450,13 +458,12 @@ async function getSessionSchedule(args: {
     url: m.url_external_de,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: sessions.length,
-      total: resp.meta.total_records,
-      sessions,
-    })
-  );
+  return fit(sessions, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    sessions: kept,
+  }));
 }
 
 interface SpeechRecord {
@@ -498,14 +505,13 @@ async function searchParliamentSpeeches(args: {
     durationSeconds: s.duration_seconds,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: speeches.length,
-      total: resp.meta.total_records,
-      affairId: args.affair_id,
-      speeches,
-    })
-  );
+  return fit(speeches, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    affairId: args.affair_id,
+    speeches: kept,
+  }));
 }
 
 interface InterestRecord {
@@ -541,13 +547,13 @@ async function getPoliticianInterests(args: {
     url: i.url,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: interests.length,
-      personId: args.person_id,
-      interests,
-    })
-  );
+  return fit(interests, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    personId: args.person_id,
+    interests: kept,
+  }));
 }
 
 async function searchCantonalAffairs(args: {
@@ -582,15 +588,14 @@ async function searchCantonalAffairs(args: {
     url: a.url_external_de,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: affairs.length,
-      total: resp.meta.total_records,
-      canton: args.canton.toUpperCase(),
-      query: args.query || null,
-      affairs,
-    })
-  );
+  return fit(affairs, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    canton: args.canton.toUpperCase(),
+    query: args.query || null,
+    affairs: kept,
+  }));
 }
 
 interface DocRecord {
@@ -624,14 +629,13 @@ async function getParliamentaryDocuments(args: {
     date: d.date ? d.date.split("T")[0] : null,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: docs.length,
-      total: resp.meta.total_records,
-      affairId: args.affair_id,
-      documents: docs,
-    })
-  );
+  return fit(docs, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    affairId: args.affair_id,
+    documents: kept,
+  }));
 }
 
 async function getCommitteeMeetings(args: {
@@ -664,13 +668,12 @@ async function getCommitteeMeetings(args: {
     url: m.url_external_de,
   }));
 
-  return truncate(
-    JSON.stringify({
-      count: meetings.length,
-      total: resp.meta.total_records,
-      meetings,
-    })
-  );
+  return fit(meetings, (kept, dropped) => ({
+    count: kept.length,
+    total: resp.meta.total_records,
+    omitted: dropped || undefined,
+    meetings: kept,
+  }));
 }
 
 // ── Main dispatcher ───────────────────────────────────────────────────────────

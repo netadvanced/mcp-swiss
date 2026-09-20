@@ -942,8 +942,7 @@
           },
           "year": {
             "type": "number",
-            "description": "2010–2024",
-            "default": 2024
+            "description": "STATPOP year, from 2010; default is the latest published"
           }
         }
       }
@@ -1595,7 +1594,6 @@
               "PCF",
               "PDS",
               "PGE",
-              "PJU",
               "PLO",
               "PLS",
               "PLU",
@@ -1629,7 +1627,6 @@
               "PCF",
               "PDS",
               "PGE",
-              "PJU",
               "PLO",
               "PLS",
               "PLU",

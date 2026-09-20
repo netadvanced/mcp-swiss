@@ -12,6 +12,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Fixed
 - `get_dams_by_canton` and `list_postcodes_in_canton` filtered by the canton's bounding box, so they returned places from neighbouring cantons under the wrong canton label. Lucerne, for instance, listed six dams, none of them in LU. Both now use a real canton attribute: dams are checked against the swissboundaries3d canton polygons, postcodes come from the canton column of the official locality register (AMTOVZ). Postcodes that only reach into a canton are listed separately with their main canton and address share, and dams on the German border are flagged.
 - `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
+- Parliament responses over the 48K budget were cut mid-JSON, so the client could not parse them at all. They now drop whole list entries and report how many under `omitted`.
+- `get_parliament_votes` read field names OpenParlData does not use, so every tally came back empty. Wired to the real `title_de`/`meaning_of_*`/`results_*` fields.
+- `is_holiday_today` used the UTC date, so between midnight and 02:00 Swiss time it asked about yesterday — on 1 August it answered "not a holiday". It and the avalanche bulletin date now use the Europe/Zurich calendar date.
+- `get_nearby_stations` advertised `limit` and `distance` but sent neither; transport.opendata.ch ignores both anyway, so they are applied to the station list it returns.
+- `get_population` rejected "Zürich" and "Genève" as unknown cantons. Canton names are now matched without accents or case, in German, French, Italian and English.
+- `get_population` rejected year 2025 against a hard-coded list. The available years now come from the STATPOP cube's own metadata, and the default is the latest published vintage.
+- Pollen station names came out as "Gen�ve" / "Z�rich": MeteoSwiss serves ISO-8859-1 under a bare `text/csv`, which was being decoded as UTF-8.
+- `get_pollen_current` and `get_pollen_daily` checked the station against a frozen list of 16 codes, one of which (PJU) MeteoSwiss has retired. They now check against the published station list, cached for a day.
 - `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
 
 ## [0.9.0] - 2026-09-19
