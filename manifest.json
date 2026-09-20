@@ -270,7 +270,7 @@
     },
     {
       "name": "get_dams_by_canton",
-      "description": "Federally supervised dams in a canton (max 20)"
+      "description": "Federally supervised dams in a canton"
     },
     {
       "name": "get_dam_details",

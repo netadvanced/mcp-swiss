@@ -35,6 +35,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `swiss_discover` and `swiss_call` were annotated `readOnlyHint: true` like the data tools, so a client that auto-approves read-only calls would auto-approve a tool that rewrites the session's tool list. Both meta-tools now carry their own annotations.
 - The MCP registry workflow pulled `mcp-publisher` from `releases/latest` with no checksum and installed it with `sudo` in a job holding `id-token: write`. It now pins v1.8.1, verifies the published SHA256 and installs into `$RUNNER_TEMP`.
 - The CI `npm audit` step had `continue-on-error: true`, so it could never fail the build. It now fails on high and critical advisories.
+- `get_dams_by_canton` built its candidate list from the geo.admin `find` endpoint, which stops at 201 rows. The layer holds 225, so 24 dams from "Le Chalet" onwards were never returned — Zeuzier, Vieux Emosson, Zervreila, Verbois, Wettingen and the rest. The list is now paged off the `identify` endpoint, and a `limit` (up to 100) makes cantons like VS (54 dams) and GR (45) fully reachable.
+- `get_rent_index` hard-coded the CPI row count at 515 to compute "the latest N months", so the window drifted every time the source gained a month, and the error text advertised a fixed "1982–2025". Both the window and the reported coverage now come from the response, and a year lookup uses the store's own filter instead of a computed offset.
 
 ## [0.9.0] - 2026-09-19
 

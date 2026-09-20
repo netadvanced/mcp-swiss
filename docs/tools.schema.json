@@ -1254,7 +1254,7 @@
     },
     {
       "name": "get_dams_by_canton",
-      "description": "Federally supervised dams in a canton (max 20)",
+      "description": "Federally supervised dams in a canton",
       "inputSchema": {
         "type": "object",
         "required": [
@@ -1264,6 +1264,11 @@
           "canton": {
             "type": "string",
             "description": "Canton code, e.g. VS"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Dams to return (1-100)",
+            "default": 20
           }
         }
       }
@@ -1391,7 +1396,7 @@
         "properties": {
           "year": {
             "type": "number",
-            "description": "1983 onward (omit for recent months)"
+            "description": "1982 onward (omit for recent months)"
           },
           "limit": {
             "type": "number",

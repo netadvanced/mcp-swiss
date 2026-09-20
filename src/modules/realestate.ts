@@ -353,41 +353,47 @@ async function handleSearchRealEstateData(
 
 // ── Tool: get_rent_index ─────────────────────────────────────────────────────
 
+/** First and last row of the CPI series, plus the row count, all read from the store. */
+async function fetchCpiExtent(): Promise<{ total: number; first: ZgCpiRow; last: ZgCpiRow }> {
+  const head = await fetchJSON<ZgCpiResponse>(buildUrl(CPI_RENT_URL, { _limit: 1, _offset: 0 }));
+  const first = head.results?.[0];
+  if (!first) throw new Error("CPI series is empty at data.zg.ch");
+
+  const total = head.resultCount ?? 1;
+  if (total <= 1) return { total: 1, first, last: first };
+
+  const tail = await fetchJSON<ZgCpiResponse>(
+    buildUrl(CPI_RENT_URL, { _limit: 1, _offset: total - 1 })
+  );
+  return { total, first, last: tail.results?.[0] ?? first };
+}
+
 async function handleGetRentIndex(args: Record<string, unknown>): Promise<string> {
   const rawYear = typeof args.year === "number" ? args.year : undefined;
   const rawLimit = Math.min(60, Math.max(1, typeof args.limit === "number" ? args.limit : 24));
 
-  // Fetch CPI (LIK) data from Canton Zug open data - monthly index (base Dec 1982 = 100)
-  // This is the Swiss national CPI (Landesindex der Konsumentenpreise) which includes
-  // the residential rent component
-  const totalRecords = 515; // approximate total
+  // Swiss national CPI (Landesindex der Konsumentenpreise), monthly, from the Canton Zug
+  // mirror. The store grows every month, so the row count and the covered period are read
+  // from it rather than assumed.
+  const extent = await fetchCpiExtent();
+  const coverage = `${extent.first.monat} ${extent.first.jahr} – ${extent.last.monat} ${extent.last.jahr}`;
 
-  let url: string;
+  let rows: ZgCpiRow[];
   if (rawYear !== undefined) {
-    // Fetch specific year - estimate offset
-    // Data starts from Dec 1982 (record 0) ~ month 0
-    // Each year has 12 records. 1982 has 1 record (Dec only).
-    const yearsFromStart = rawYear - 1982;
-    const estOffset = Math.max(0, 1 + (yearsFromStart - 1) * 12);
-    url = buildUrl(CPI_RENT_URL, { _limit: 12, _offset: estOffset });
-  } else {
-    // Latest data - fetch last N months
-    const offset = Math.max(0, totalRecords - rawLimit);
-    url = buildUrl(CPI_RENT_URL, { _limit: rawLimit, _offset: offset });
-  }
-
-  const data = await fetchJSON<ZgCpiResponse>(url);
-
-  // Filter by year if specified
-  let rows = data.results;
-  if (rawYear !== undefined) {
-    rows = rows.filter((r) => r.jahr === String(rawYear));
-  }
-
-  if (rows.length === 0 && rawYear !== undefined) {
-    throw new Error(
-      `No CPI data found for year ${rawYear}. Available data: 1982–2025.`
+    // The store filters on jahr server-side, so no offset arithmetic is needed.
+    const data = await fetchJSON<ZgCpiResponse>(
+      buildUrl(CPI_RENT_URL, { jahr: rawYear, _limit: 12 })
     );
+    rows = data.results ?? [];
+    if (rows.length === 0) {
+      throw new Error(`No CPI data for year ${rawYear}. The series covers ${coverage}.`);
+    }
+  } else {
+    const offset = Math.max(0, extent.total - rawLimit);
+    const data = await fetchJSON<ZgCpiResponse>(
+      buildUrl(CPI_RENT_URL, { _limit: rawLimit, _offset: offset })
+    );
+    rows = data.results ?? [];
   }
 
   const series = rows.map((r) => ({
@@ -417,7 +423,8 @@ async function handleGetRentIndex(args: Record<string, unknown>): Promise<string
 
   return JSON.stringify({
     index_name: "Swiss Consumer Price Index (LIK / IPC)",
-    baseline: "December 1982 = 100",
+    baseline: `${extent.first.monat} ${extent.first.jahr} = ${extent.first.index}`,
+    coverage,
     note:
       "The Swiss CPI (Landesindex der Konsumentenpreise) tracks the cost of living including residential rents. " +
       "This is the official Swiss national index published by BFS/FSO. " +
@@ -488,7 +495,7 @@ export const realEstateTools = [
       properties: {
         year: {
           type: "number",
-          description: "1983 onward (omit for recent months)",
+          description: "1982 onward (omit for recent months)",
         },
         limit: {
           type: "number",

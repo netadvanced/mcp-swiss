@@ -35,21 +35,42 @@ function mockFetchSequence(...payloads: unknown[]) {
   return fetchMock;
 }
 
+/** api3.geo.admin.ch never returns more than this in one response, on any endpoint. */
+const API3_CAP = 201;
+
+type DamRow = Omit<typeof grandeDixenceDam, "geometry"> & {
+  geometry?: { x: number; y: number; spatialReference?: { wkid: number } };
+};
+
+function isDamLayerIdentify(u: URL): boolean {
+  return u.pathname.endsWith("/identify") && !!u.searchParams.get("layers")?.includes("stauanlagen");
+}
+
+/** One page of the dam layer, capped the way the real endpoint caps it. */
+function damLayerPage(rows: DamRow[], u: URL) {
+  const offset = Number(u.searchParams.get("offset") ?? 0);
+  return { results: rows.slice(offset, offset + API3_CAP) };
+}
+
 /**
  * Route each request by URL, so tests do not depend on call order.
  * `cantons` maps a "x,y" LV95 point to the canton the identify endpoint returns.
+ * Both `find` and the dam-layer `identify` stop at 201 rows, as upstream does.
  */
 function mockGeoAdmin(opts: {
-  dams?: unknown;
+  dams?: { results: DamRow[] };
   damsByField?: Record<string, unknown>;
   cantonFind?: unknown;
   cantons?: Record<string, string | null>;
 }) {
+  const damRows = opts.dams?.results ?? [];
   const fetchMock = vi.fn().mockImplementation((url: string) => {
     const u = new URL(String(url));
     let payload: unknown = { results: [] };
 
-    if (u.pathname.endsWith("/identify")) {
+    if (isDamLayerIdentify(u)) {
+      payload = damLayerPage(damRows, u);
+    } else if (u.pathname.endsWith("/identify")) {
       const point = u.searchParams.get("geometry") ?? "";
       const code = opts.cantons?.[point] ?? null;
       payload = code
@@ -59,7 +80,8 @@ function mockGeoAdmin(opts: {
       payload = opts.cantonFind ?? { results: [] };
     } else {
       const field = u.searchParams.get("searchField") ?? "";
-      payload = opts.damsByField?.[field] ?? opts.dams ?? { results: [] };
+      const found = (opts.damsByField?.[field] ?? opts.dams ?? { results: [] }) as { results: DamRow[] };
+      payload = { results: found.results.slice(0, API3_CAP) };
     }
 
     return Promise.resolve({
@@ -71,6 +93,32 @@ function mockGeoAdmin(opts: {
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+/** `count` dams spread across the VS bounding box, one per 500 m. */
+function damRows(count: number): DamRow[] {
+  return Array.from({ length: count }, (_, i) => ({
+    ...grandeDixenceDam,
+    featureId: 200000 + i,
+    id: 200000 + i,
+    geometry: { x: 2550000 + i * 500, y: 1100000, spatialReference: { wkid: 2056 } },
+    attributes: { ...grandeDixenceDam.attributes, damname: `Dam${i}` },
+  }));
+}
+
+/** Canton per dam point: VS for the listed indices, BE for the rest. */
+function cantonMap(rows: DamRow[], vsIndices: number[]): Record<string, string> {
+  const vs = new Set(vsIndices);
+  return Object.fromEntries(
+    rows.map((row, i) => [`${row.geometry?.x},${row.geometry?.y}`, vs.has(i) ? "VS" : "BE"])
+  );
+}
+
+function damLayerOffsets(fetchMock: { mock: { calls: unknown[][] } }): number[] {
+  return fetchMock.mock.calls
+    .map((call) => new URL(String(call[0])))
+    .filter(isDamLayerIdentify)
+    .map((u) => Number(u.searchParams.get("offset") ?? 0));
 }
 
 const VS_POINT = "2597249.3,1103229.9";
@@ -313,7 +361,9 @@ describe("get_dams_by_canton", () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const u = new URL(String(url));
       let payload: unknown = { results: [] };
-      if (u.pathname.endsWith("/identify")) {
+      if (isDamLayerIdentify(u)) {
+        payload = damLayerPage(mockDamSearchByName.results, u);
+      } else if (u.pathname.endsWith("/identify")) {
         const tolerance = Number(u.searchParams.get("tolerance"));
         payload = tolerance > 0 ? mockCantonIdentifyVS : mockCantonIdentifyEmpty;
       } else if (u.searchParams.get("layer")?.includes("kanton")) {
@@ -417,6 +467,62 @@ describe("get_dams_by_canton", () => {
     for (const dam of result.dams) {
       expect(dam.canton).toBe("VS");
     }
+  });
+
+  it("reaches dams past the 201-row API cap", async () => {
+    // The layer really does hold more than 201 rows; the tail used to be invisible.
+    const dams = { results: damRows(225) };
+    const fetchMock = mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams,
+      cantons: cantonMap(dams.results, [0, 224]),
+    });
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
+
+    const names = result.dams.map((d: { dam_name: string }) => d.dam_name);
+    expect(names).toContain("Dam0");
+    expect(names).toContain("Dam224");
+    expect(result.total_in_canton).toBe(2);
+
+    const offsets = damLayerOffsets(fetchMock);
+    expect(offsets.length).toBeGreaterThan(1);
+    expect(new Set(offsets).size).toBe(offsets.length);
+  });
+
+  it("stops after a short page", async () => {
+    const dams = { results: damRows(150) };
+    const fetchMock = mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams,
+      cantons: cantonMap(dams.results, [0]),
+    });
+    await handleDams("get_dams_by_canton", { canton: "VS" });
+    expect(damLayerOffsets(fetchMock)).toHaveLength(1);
+  });
+
+  it("returns more than the default 20 when limit is raised", async () => {
+    const dams = { results: damRows(60) };
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams,
+      cantons: cantonMap(dams.results, dams.results.map((_, i) => i)),
+    });
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS", limit: 50 }));
+    expect(result.count).toBe(50);
+    expect(result.total_in_canton).toBe(60);
+    expect(result.note).toContain("50 of 60");
+  });
+
+  it("clamps limit to 100", async () => {
+    const dams = { results: damRows(120) };
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams,
+      cantons: cantonMap(dams.results, dams.results.map((_, i) => i)),
+    });
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS", limit: 999 }));
+    expect(result.count).toBe(100);
+    expect(result.total_in_canton).toBe(120);
   });
 
   it("reuses the cached dam list and canton lookups across calls", async () => {

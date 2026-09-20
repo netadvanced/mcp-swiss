@@ -2258,13 +2258,14 @@ Search Swiss federal dams by name or keyword (SFOE federal supervision registry)
 
 ### `get_dams_by_canton`
 
-List all federal dams in a Swiss canton.
+List the federally supervised dams in a Swiss canton. The response carries `total_in_canton`, so a truncated list is visible as such.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ✅ | Canton abbreviation (e.g. 'VS', 'GR', 'BE') |
+| limit | number | ❌ | Dams to return, 1–100 (default: 20) |
 
 ---
 
@@ -2340,14 +2341,14 @@ Search BFS real estate datasets on opendata.swiss.
 
 ### `get_rent_index`
 
-Swiss rent index and housing cost data from BFS.
+Swiss national consumer price index (LIK/IPC), which includes residential rents — not a dedicated rent index. Monthly. The `coverage` field reports the period the source actually holds.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation (e.g. 'ZH') |
-| year | number | ❌ | Reference year (e.g. 2024) |
+| year | number | ❌ | Reference year, 1982 onward (e.g. 2024) |
+| limit | number | ❌ | Recent months, 1–60 (default: 24); ignored when `year` is set |
 
 ---
 
