@@ -175,6 +175,54 @@ describe("HTTP transport", () => {
     expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(2);
   });
 
+  it("keeps the cap under concurrent initializes", async () => {
+    const base = await start({ maxSessions: 3 });
+    const attempts = Array.from({ length: 12 }, () =>
+      fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody })
+    );
+    const results = await Promise.all(attempts);
+    await Promise.all(results.map((r) => r.text()));
+
+    const accepted = results.filter((r) => r.status === 200).length;
+    const rejected = results.filter((r) => r.status === 429).length;
+    expect(accepted).toBe(3);
+    expect(rejected).toBe(9);
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(3);
+  });
+
+  it("does not count or strand a handshake that never completes", async () => {
+    const base = await start({ maxSessions: 2 });
+    // An initialize the SDK rejects: no session is created, and the slot must
+    // be released rather than held by an orphaned server.
+    for (let i = 0; i < 5; i++) {
+      const res = await fetch(`${base}/mcp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, // missing the SSE Accept
+        body: initBody,
+      });
+      await res.text();
+    }
+    expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(0);
+
+    // The cap is still fully available afterwards.
+    const ok = await fetch(`${base}/mcp`, { method: "POST", headers: mcpHeaders, body: initBody });
+    expect(ok.status).toBe(200);
+    await ok.text();
+  });
+
+  it("rejects a token of the wrong length without leaking it", async () => {
+    const base = await start({ authToken: "correct-horse-battery-staple" });
+    for (const attempt of ["", "short", "correct-horse-battery-stapl", "correct-horse-battery-staplee"]) {
+      const res = await fetch(`${base}/mcp`, {
+        method: "POST",
+        headers: { ...mcpHeaders, Authorization: `Bearer ${attempt}` },
+        body: initBody,
+      });
+      expect(res.status).toBe(401);
+      await res.text();
+    }
+  });
+
   it("returns 413 for an oversized body", async () => {
     const base = await start();
     const res = await fetch(`${base}/mcp`, {

@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -60,9 +60,11 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 function tokenMatches(header: string | undefined, token: string): boolean {
-  const presented = Buffer.from(header?.replace(/^Bearer\s+/i, "") ?? "");
-  const expected = Buffer.from(token);
-  return presented.length === expected.length && timingSafeEqual(presented, expected);
+  // Hash both sides first: comparing raw buffers returns early on a length
+  // mismatch, which leaks the token length.
+  const presented = createHash("sha256").update(header?.replace(/^Bearer\s+/i, "") ?? "").digest();
+  const expected = createHash("sha256").update(token).digest();
+  return timingSafeEqual(presented, expected);
 }
 
 const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "::1"];
@@ -104,6 +106,8 @@ export function publicBindProblems({ host, authToken, allowedHosts }: PublicBind
  */
 export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
   const sessions = new Map<string, Session>();
+  /** Handshakes past the cap check but not yet registered. */
+  let pending = 0;
   const ttl = opts.sessionTtlMs ?? 30 * 60_000;
   const maxSessions = opts.maxSessions ?? DEFAULT_MAX_SESSIONS;
 
@@ -151,10 +155,13 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
       return rpcError(res, 400, "Bad Request: no valid session ID provided");
     }
 
-    if (sessions.size >= maxSessions) {
+    // Reserve the slot before building anything: two concurrent initializes
+    // would otherwise both pass a `sessions.size` check and overshoot the cap.
+    if (pending + sessions.size >= maxSessions) {
       res.setHeader("Retry-After", "60");
       return rpcError(res, 429, `Too many sessions (limit ${maxSessions}); retry later`);
     }
+    pending += 1;
 
     const server = opts.createMcpServer();
     const transport = new StreamableHTTPServerTransport({
@@ -166,8 +173,19 @@ export function startHttpServer(opts: HttpServerOptions): Promise<HttpServer> {
       },
       onsessionclosed: (id) => closeSession(id),
     });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, body);
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, body);
+    } finally {
+      pending -= 1;
+      // A handshake that never reached onsessioninitialized leaves an orphan
+      // server holding memory that nothing would ever sweep.
+      if (!transport.sessionId || !sessions.has(transport.sessionId)) {
+        await transport.close().catch(() => undefined);
+        await server.close().catch(() => undefined);
+      }
+    }
   };
 
   const httpServer = createHttpServer((req, res) => {

@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Fixed
+- HTTP session cap held only for sequential handshakes: concurrent `initialize` requests could all pass the check and overshoot it, and a handshake that failed after the server was built left an MCP server nothing would ever close. Slots are now reserved before the server is created and released when the handshake does not complete
+- Bearer comparison returned early on a length mismatch, leaking the token length; both sides are hashed first
+- `MCP_MAX_SESSIONS` silently fell back to 64 when set to `0` or junk; it now refuses to start
 - `get_dams_by_canton` and `list_postcodes_in_canton` filtered by the canton's bounding box, so they returned places from neighbouring cantons under the wrong canton label. Lucerne, for instance, listed six dams, none of them in LU. Both now use a real canton attribute: dams are checked against the swissboundaries3d canton polygons, postcodes come from the canton column of the official locality register (AMTOVZ). Postcodes that only reach into a canton are listed separately with their main canton and address share, and dams on the German border are flagged.
 - `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
 - `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
