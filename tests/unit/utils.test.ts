@@ -165,6 +165,43 @@ describe('httpFetch', () => {
     expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('timeoutMs');
   });
 
+  it('retries once after a dropped connection', async () => {
+    const dropped = Object.assign(new TypeError('fetch failed'), {
+      cause: { code: 'UND_ERR_SOCKET' },
+    });
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(dropped)
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await httpFetch('https://example.com/flaky');
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after the configured retries', async () => {
+    const dropped = Object.assign(new TypeError('fetch failed'), {
+      cause: { code: 'ECONNRESET' },
+    });
+    const fetchMock = vi.fn().mockRejectedValue(dropped);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(httpFetch('https://example.com/down')).rejects.toThrow('fetch failed');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a plain HTTP error or a timeout', async () => {
+    const notFound = vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found', json: () => Promise.resolve({}) });
+    vi.stubGlobal('fetch', notFound);
+    await expect(fetchJSON('https://example.com/missing')).rejects.toThrow('HTTP 404');
+    expect(notFound).toHaveBeenCalledTimes(1);
+
+    const timedOut = vi.fn().mockRejectedValue(new DOMException('slow', 'TimeoutError'));
+    vi.stubGlobal('fetch', timedOut);
+    await expect(httpFetch('https://example.com/slow')).rejects.toThrow('timed out');
+    expect(timedOut).toHaveBeenCalledTimes(1);
+  });
+
   it('turns an abort timeout into a readable error', async () => {
     const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
