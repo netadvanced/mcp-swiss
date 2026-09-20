@@ -12,7 +12,7 @@ MCP (Model Context Protocol) server providing Swiss public data to AI assistants
 - Companies: business registry search (ZEFIX)
 - Holidays: public & school holidays by canton
 - Parliament: votes, councillors, sessions
-- Avalanche: SLF danger bulletins
+- Avalanche: SLF bulletin danger levels, problems, warning regions
 - Air Quality: NABEL station measurements
 - Swiss Post: postcode lookup, parcel tracking
 - Energy: electricity tariffs by municipality (ElCom)
