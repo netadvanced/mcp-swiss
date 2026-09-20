@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
+import { swissToday } from '../../src/utils/date.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -274,5 +275,16 @@ describe('httpFetch', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
 
     await expect(httpFetch('https://example.com/slow')).rejects.toThrow(/timed out after .* https:\/\/example\.com\/slow/);
+  });
+});
+
+describe('swissToday', () => {
+  it('returns the Europe/Zurich calendar date, not the UTC one', () => {
+    // 00:30 CEST on 1 August is still 22:30 UTC on 31 July
+    expect(swissToday(new Date('2026-08-01T00:30:00+02:00'))).toBe('2026-08-01');
+    // 01:30 CET on 1 January is 00:30 UTC the same day
+    expect(swissToday(new Date('2026-01-01T01:30:00+01:00'))).toBe('2026-01-01');
+    // just before midnight in Zurich, UTC is still on the same day
+    expect(swissToday(new Date('2026-06-30T23:59:00+02:00'))).toBe('2026-06-30');
   });
 });

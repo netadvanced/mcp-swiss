@@ -235,8 +235,8 @@
 |-----------|------|----------|-------------|
 | x | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
 | y | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
-| limit | number | ⬜ | Number of results (default: 10) |
-| distance | number | ⬜ | Maximum search radius in meters |
+| limit | number | ⬜ | Keep only the nearest N stations |
+| distance | number | ⬜ | Drop stations further away than this, in metres |
 
 ### Output
 
@@ -1261,12 +1261,14 @@ Or if not a holiday:
 ```json
 {
   "count": 2,
+  "total": 2,
   "affairId": 296480,
   "votes": [
     {
       "id": 5001,
       "affairId": 296480,
       "subject": "Gesamtabstimmung",
+      "type": "Schlussabstimmung",
       "meaningYes": "Annahme der Motion",
       "meaningNo": "Ablehnung der Motion",
       "yes": 102,
@@ -1283,6 +1285,7 @@ Or if not a holiday:
 
 - Not all affairs have recorded votes — some return empty arrays
 - `meaningYes` / `meaningNo` explain what each vote outcome means
+- An affair with hundreds of votes is trimmed to fit the response budget; `omitted` then says how many were dropped
 
 ---
 
@@ -1995,7 +1998,7 @@ No parameters required.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ❌ | Canton name or 2-letter code (e.g. 'ZH', 'Zürich', 'Geneva'). Omit for Switzerland total. Use 'all' for all cantons. |
-| year | number | ❌ | Year of data (2010–2024). Default: 2024 |
+| year | number | ❌ | Year of data, from 2010. Default: the latest vintage the cube carries |
 
 ### Output
 
