@@ -556,7 +556,7 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_property_price_index` | Swiss property price index (BFS Immo-Monitoring) |
+| `get_property_price_index` | BFS residential property price index (IMPI), quarterly |
 | `search_real_estate_data` | Search BFS real estate datasets on opendata.swiss |
 | `get_rent_index` | Swiss rent index and housing cost data from BFS |
 

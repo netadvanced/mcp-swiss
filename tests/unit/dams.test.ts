@@ -1,17 +1,16 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleDams, damsTools } from "../../src/modules/dams.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { handleDams, damsTools, clearDamsCache } from "../../src/modules/dams.js";
 import {
   mockDamSearchByName,
-  mockDamSearchByReservoir,
   mockDamSearchGrimsel,
   mockDamSearchEmpty,
   mockCantonIdentifyVS,
   mockCantonIdentifyBE,
-  mockCantonFindVS,
   mockCantonFindWithBboxVS,
   mockCantonFindEmpty,
   mockAllDamsWithGeometry,
   mockAllDamsNoGeometry,
+  mockCantonIdentifyEmpty,
   grandeDixenceDam,
 } from "../fixtures/dams.js";
 
@@ -22,20 +21,61 @@ import {
  */
 function mockFetchSequence(...payloads: unknown[]) {
   let call = 0;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockImplementation(() => {
-      const payload = payloads[call] ?? { results: [] };
-      call++;
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: () => Promise.resolve(payload),
-      });
-    })
-  );
+  const fetchMock = vi.fn().mockImplementation(() => {
+    const payload = payloads[call] ?? { results: [] };
+    call++;
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: () => Promise.resolve(payload),
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
+
+/**
+ * Route each request by URL, so tests do not depend on call order.
+ * `cantons` maps a "x,y" LV95 point to the canton the identify endpoint returns.
+ */
+function mockGeoAdmin(opts: {
+  dams?: unknown;
+  damsByField?: Record<string, unknown>;
+  cantonFind?: unknown;
+  cantons?: Record<string, string | null>;
+}) {
+  const fetchMock = vi.fn().mockImplementation((url: string) => {
+    const u = new URL(String(url));
+    let payload: unknown = { results: [] };
+
+    if (u.pathname.endsWith("/identify")) {
+      const point = u.searchParams.get("geometry") ?? "";
+      const code = opts.cantons?.[point] ?? null;
+      payload = code
+        ? { results: [{ layerBodId: "canton", featureId: 1, attributes: { ak: code, name: code, flaeche: 1, label: code } }] }
+        : { results: [] };
+    } else if (u.searchParams.get("layer")?.includes("kanton")) {
+      payload = opts.cantonFind ?? { results: [] };
+    } else {
+      const field = u.searchParams.get("searchField") ?? "";
+      payload = opts.damsByField?.[field] ?? opts.dams ?? { results: [] };
+    }
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: () => Promise.resolve(payload),
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+const VS_POINT = "2597249.3,1103229.9";
+const MATTMARK_POINT = "2641000,1099000";
+const SPITALLAMM_POINT = "2668300.3,1158269.7";
 
 function mockFetch(payload: unknown, status = 200) {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
@@ -46,8 +86,13 @@ function mockFetch(payload: unknown, status = 200) {
   }));
 }
 
+beforeEach(() => {
+  clearDamsCache();
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  clearDamsCache();
 });
 
 // ── damsTools export ──────────────────────────────────────────────────────────
@@ -163,6 +208,31 @@ describe("search_dams", () => {
     expect(result.results[0].canton).toBeNull();
   });
 
+  it("asks for geometry so the canton can be resolved", async () => {
+    const fetchMock = mockFetchSequence(mockDamSearchByName, mockCantonIdentifyVS);
+    const result = JSON.parse(await handleDams("search_dams", { query: "Grande Dixence" }));
+    const findUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(findUrl.searchParams.get("returnGeometry")).toBe("true");
+    expect(result.results[0].canton).toBe("VS");
+  });
+
+  it("asks the canton layer in LV95, the frame the dam geometry comes in", async () => {
+    const fetchMock = mockFetchSequence(mockDamSearchByName, mockCantonIdentifyVS);
+    await handleDams("search_dams", { query: "Grande Dixence" });
+    const identifyUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(identifyUrl.searchParams.get("sr")).toBe("2056");
+    expect(identifyUrl.searchParams.get("geometry")).toBe("2597249.3,1103229.9");
+  });
+
+  it("leaves canton null when the point matches two cantons within the border tolerance", async () => {
+    const twoCantons = {
+      results: [...mockCantonIdentifyVS.results, ...mockCantonIdentifyBE.results],
+    };
+    mockFetchSequence(mockDamSearchByName, mockCantonIdentifyEmpty, twoCantons);
+    const result = JSON.parse(await handleDams("search_dams", { query: "Grande Dixence" }));
+    expect(result.results[0].canton).toBeNull();
+  });
+
   it("returns dam purpose field", async () => {
     mockFetchSequence(mockDamSearchByName, mockCantonIdentifyVS);
     const result = JSON.parse(await handleDams("search_dams", { query: "Grande Dixence" }));
@@ -198,50 +268,91 @@ describe("search_dams", () => {
 
 describe("get_dams_by_canton", () => {
   it("returns dams in canton VS", async () => {
-    // canton find (no geom), canton find (with geom/bbox), all dams, (no identify needed)
-    mockFetchSequence(
-      mockCantonFindVS,
-      mockCantonFindWithBboxVS,
-      mockAllDamsWithGeometry,
-    );
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
     expect(result.canton).toBe("VS");
-    expect(Array.isArray(result.dams)).toBe(true);
-    expect(result.count).toBeGreaterThan(0);
-    // Grande Dixence (597249, 103229) is within VS bbox [548579..679786, 78560..167428]
     const names = result.dams.map((d: { dam_name: string }) => d.dam_name);
     expect(names).toContain("Grande Dixence");
+    expect(names).toContain("Mattmark");
   });
 
-  it("includes source link", async () => {
-    mockFetchSequence(mockCantonFindVS, mockCantonFindWithBboxVS, mockAllDamsWithGeometry);
+  it("drops a dam inside the bbox that the canton polygon does not contain", async () => {
+    // Spitallamm (Grimsel) sits inside the VS bounding box but is in canton BE.
+    const dams = {
+      results: [...mockAllDamsWithGeometry.results],
+    };
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
+    const names = result.dams.map((d: { dam_name: string }) => d.dam_name);
+    expect(names).not.toContain("Spitallamm");
+    expect(result.count).toBe(2);
+    expect(result.total_in_canton).toBe(2);
+  });
+
+  it("returns nothing when the bbox catches dams that all belong elsewhere", async () => {
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "BE", [MATTMARK_POINT]: "BE", [SPITALLAMM_POINT]: "BE" },
+    });
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
+    expect(result.dams).toHaveLength(0);
+    expect(result.message).toContain("No dams found");
+  });
+
+  it("keeps a dam on the national border and flags it", async () => {
+    // First identify (tolerance 0) misses, the 300 m one hits — the Rhine plants.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const u = new URL(String(url));
+      let payload: unknown = { results: [] };
+      if (u.pathname.endsWith("/identify")) {
+        const tolerance = Number(u.searchParams.get("tolerance"));
+        payload = tolerance > 0 ? mockCantonIdentifyVS : mockCantonIdentifyEmpty;
+      } else if (u.searchParams.get("layer")?.includes("kanton")) {
+        payload = mockCantonFindWithBboxVS;
+      } else {
+        payload = mockDamSearchByName;
+      }
+      return Promise.resolve({
+        ok: true, status: 200, statusText: "OK",
+        json: () => Promise.resolve(payload),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
+    expect(result.count).toBe(1);
+    expect(result.dams[0].canton).toBe("VS");
+    expect(result.dams[0].canton_on_national_border).toBe(true);
+  });
+
+  it("names the layer the canton was read from", async () => {
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
     expect(result.source).toContain("geo.admin.ch");
+    expect(result.canton_source).toContain("swissboundaries3d-kanton");
   });
 
   it("uppercase-normalises canton code", async () => {
-    mockFetchSequence(mockCantonFindVS, mockCantonFindWithBboxVS, mockAllDamsWithGeometry);
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "vs" }));
     expect(result.canton).toBe("VS");
-  });
-
-  it("returns helpful message when no dams in canton", async () => {
-    // Empty bbox result that filters all dams out — use a bbox that excludes all
-    const emptyBboxCanton = {
-      results: [{
-        featureId: 99, id: 99,
-        bbox: [800000, 280000, 810000, 290000] as [number, number, number, number],
-        attributes: { ak: "AI", name: "Appenzell Innerrhoden", flaeche: 172.0, label: "AI" },
-      }],
-    };
-    mockFetchSequence(
-      { results: [{ featureId: 99, id: 99, attributes: { ak: "AI", name: "AI", flaeche: 172, label: "AI" } }] },
-      emptyBboxCanton,
-      mockAllDamsWithGeometry,
-    );
-    const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "AI" }));
-    expect(result.dams).toHaveLength(0);
-    expect(result.message).toContain("No dams found");
   });
 
   it("throws when canton is missing", async () => {
@@ -265,42 +376,60 @@ describe("get_dams_by_canton", () => {
   });
 
   it("throws when canton code not found in API", async () => {
-    mockFetchSequence(mockCantonFindEmpty, mockCantonFindEmpty);
+    mockGeoAdmin({ cantonFind: mockCantonFindEmpty });
     await expect(
       handleDams("get_dams_by_canton", { canton: "XX" })
     ).rejects.toThrow("Unknown canton code");
   });
 
   it("limits results to 20 max", async () => {
-    // Create 25 dam results all within VS bbox
     const manyDams = {
       results: Array.from({ length: 25 }, (_, i) => ({
         ...grandeDixenceDam,
         featureId: 100 + i,
         id: 100 + i,
-        geometry: { x: 600000 + i * 100, y: 100000, spatialReference: { wkid: 21781 } },
+        geometry: { x: 2600000 + i * 100, y: 1100000, spatialReference: { wkid: 2056 } },
         attributes: { ...grandeDixenceDam.attributes, damname: `Dam${i}` },
       })),
     };
-    mockFetchSequence(mockCantonFindVS, mockCantonFindWithBboxVS, manyDams);
+    const cantons = Object.fromEntries(
+      Array.from({ length: 25 }, (_, i) => [`${2600000 + i * 100},1100000`, "VS"])
+    );
+    mockGeoAdmin({ cantonFind: mockCantonFindWithBboxVS, dams: manyDams, cantons });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
     expect(result.dams.length).toBeLessThanOrEqual(20);
     expect(result.total_in_canton).toBe(25);
   });
 
   it("skips dams without geometry when filtering", async () => {
-    mockFetchSequence(mockCantonFindVS, mockCantonFindWithBboxVS, mockAllDamsNoGeometry);
+    mockGeoAdmin({ cantonFind: mockCantonFindWithBboxVS, dams: mockAllDamsNoGeometry });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
-    // damNoGeometry has no geometry.x, so it's excluded
     expect(result.dams).toHaveLength(0);
   });
 
   it("sets canton code on each dam result", async () => {
-    mockFetchSequence(mockCantonFindVS, mockCantonFindWithBboxVS, mockAllDamsWithGeometry);
+    mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
     const result = JSON.parse(await handleDams("get_dams_by_canton", { canton: "VS" }));
     for (const dam of result.dams) {
       expect(dam.canton).toBe("VS");
     }
+  });
+
+  it("reuses the cached dam list and canton lookups across calls", async () => {
+    const fetchMock = mockGeoAdmin({
+      cantonFind: mockCantonFindWithBboxVS,
+      dams: mockAllDamsWithGeometry,
+      cantons: { [VS_POINT]: "VS", [MATTMARK_POINT]: "VS", [SPITALLAMM_POINT]: "BE" },
+    });
+    await handleDams("get_dams_by_canton", { canton: "VS" });
+    const afterFirst = fetchMock.mock.calls.length;
+    await handleDams("get_dams_by_canton", { canton: "VS" });
+    // Only the canton bbox lookup is repeated.
+    expect(fetchMock.mock.calls.length).toBe(afterFirst + 1);
   });
 });
 

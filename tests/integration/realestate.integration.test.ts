@@ -1,19 +1,65 @@
-// Integration tests — hit real opendata.swiss and data.zg.ch APIs
+// Integration tests — hit the real BFS, opendata.swiss and data.zg.ch APIs
 // Run with: npx vitest run tests/integration/realestate.integration.test.ts
 
-import { describe, it, expect } from "vitest";
-import { handleRealEstate } from "../../src/modules/realestate.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import { handleRealEstate, clearRealEstateCache } from "../../src/modules/realestate.js";
+
+beforeEach(() => {
+  clearRealEstateCache();
+});
 
 // ── get_property_price_index — full dataset ──────────────────────────────────
 
-describe("get_property_price_index — live (embedded BFS data)", () => {
+describe("get_property_price_index — live (BFS IMPI)", () => {
   it("returns index data for all types", async () => {
     const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
     expect(result.type).toBe("all");
     expect(result.baseline).toBe("Q4 2019 = 100");
-    expect(result.series.length).toBeGreaterThan(40);
+    expect(result.series.length).toBeGreaterThan(30);
     expect(result.source).toContain("BFS");
-  }, 10000);
+    expect(result.source).toContain("IMPI");
+  }, 60000);
+
+  it("series starts at 2017-Q1, where BFS starts publishing IMPI", async () => {
+    const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
+    expect(result.from).toBe("2017-Q1");
+    expect(result.series[0].index).toBeCloseTo(90.46, 1);
+  }, 60000);
+
+  it("is a real series: some quarters fall", async () => {
+    const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
+    const values = (result.series as Array<{ index: number }>).map((s) => s.index);
+    const drops = values.filter((v, i) => i > 0 && v < values[i - 1]);
+    expect(drops.length).toBeGreaterThan(0);
+  }, 60000);
+
+  it("houses and apartments are not a fixed offset from the total index", async () => {
+    const all = JSON.parse(await handleRealEstate("get_property_price_index", {}));
+    const houses = JSON.parse(
+      await handleRealEstate("get_property_price_index", { type: "houses" })
+    );
+    const gaps = new Set(
+      all.series.map(
+        (s: { index: number }, i: number) => +(houses.series[i].index - s.index).toFixed(3)
+      )
+    );
+    expect(gaps.size).toBeGreaterThan(5);
+  }, 60000);
+
+  it("states the publication date and the file it came from", async () => {
+    const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
+    expect(result.data_as_of).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
+    expect(result.data_url).toContain("dam-api.bfs.admin.ch");
+    expect(result.source_url).toContain("bfs.admin.ch");
+  }, 60000);
+
+  it("reaches at least the quarter before last", async () => {
+    const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
+    const [year, quarter] = result.latest_period.split("-Q").map(Number);
+    const now = new Date();
+    const currentQuarters = now.getFullYear() * 4 + Math.floor(now.getMonth() / 3);
+    expect(currentQuarters - (year * 4 + quarter - 1)).toBeLessThanOrEqual(3);
+  }, 60000);
 
   it("Q4 2019 baseline is exactly 100", async () => {
     const result = JSON.parse(
@@ -71,11 +117,11 @@ describe("get_property_price_index — live (embedded BFS data)", () => {
     expect(typeof result.trend.change_yoy).toBe("number");
   }, 10000);
 
-  it("has dataset_id and source_url fields", async () => {
+  it("links the opendata.swiss dataset", async () => {
     const result = JSON.parse(await handleRealEstate("get_property_price_index", {}));
-    expect(result.dataset_id).toContain("wohnimmobilien");
-    expect(result.source_url).toContain("opendata.swiss");
-  }, 10000);
+    expect(result.dataset_url).toContain("opendata.swiss");
+    expect(result.dataset_url).toContain("wohnimmobilien");
+  }, 60000);
 });
 
 // ── search_real_estate_data — live (opendata.swiss) ──────────────────────────

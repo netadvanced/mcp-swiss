@@ -2344,14 +2344,15 @@ Get trail closures near given coordinates.
 
 ### `get_property_price_index`
 
-Swiss property price index from BFS Immo-Monitoring.
+Swiss residential property price index (IMPI) from BFS, quarterly from 2017-Q1, base Q4 2019 = 100. Switzerland as a whole; the index is not broken down by canton.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation to filter (e.g. 'ZH') |
-| property_type | string | ❌ | 'apartment', 'house', or 'all' (default: 'all') |
+| type | string | ❌ | 'all', 'houses' or 'apartments' (default: 'all') |
+| from | string | ❌ | Inclusive start, e.g. '2020Q1' or '2020' |
+| to | string | ❌ | Inclusive end, e.g. '2024Q4' or '2024' |
 
 ---
 
