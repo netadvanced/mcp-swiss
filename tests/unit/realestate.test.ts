@@ -585,6 +585,7 @@ describe("get_rent_index — edge cases", () => {
 
 describe("get_property_price_index — Q-prefix notation", () => {
   it("parses Q1 2020 format", async () => {
+    mockImpi();
     const result = JSON.parse(
       await handleRealEstate("get_property_price_index", { from: "Q1 2020", to: "Q4 2020" })
     );
