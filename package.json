@@ -1,25 +1,28 @@
 {
-  "name": "mcp-swiss",
-  "version": "0.7.1",
-  "description": "Swiss open data MCP server — 68 tools across 20 modules. Zero API keys.",
+  "name": "mcp-swiss-ng",
+  "private": true,
+  "version": "0.9.0",
+  "description": "Swiss open data MCP server — 82 tools across 23 modules, stdio or HTTP. Zero API keys.",
   "main": "dist/index.js",
   "bin": {
-    "mcp-swiss": "dist/index.js"
+    "mcp-swiss-ng": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "test": "vitest run tests/unit tests/mcp",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage tests/unit tests/mcp",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
+    "test:integration": "VITEST_ALLOW_NETWORK=1 vitest run tests/integration --no-file-parallelism",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "validate": "npm run lint && npm run build && npm test",
-    "test:qa": "bash scripts/qa-smoke-test.sh"
+    "test:qa": "bash scripts/qa-smoke-test.sh",
+    "docs:tools": "npm run build && node scripts/generate-tool-docs.mjs"
   },
   "keywords": [
     "mcp",
@@ -54,31 +57,34 @@
     "traffic",
     "earthquakes"
   ],
-  "author": "Vikram Gorla",
+  "author": "Pierre Christen",
+  "contributors": [
+    "Vikram Gorla (original mcp-swiss, https://github.com/vikramgorla/mcp-swiss)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vikramgorla/mcp-swiss.git"
+    "url": "https://github.com/netadvanced/mcp-swiss-ng.git"
   },
   "bugs": {
-    "url": "https://github.com/vikramgorla/mcp-swiss/issues"
+    "url": "https://github.com/netadvanced/mcp-swiss-ng/issues"
   },
-  "homepage": "https://github.com/vikramgorla/mcp-swiss#readme",
+  "homepage": "https://github.com/netadvanced/mcp-swiss-ng#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.4.0",
-    "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^10.0.3",
-    "typescript": "^5.3.0",
+    "@types/node": "^22.20.4",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^10.11.0",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.56.1",
-    "vitest": "^4.0.18"
+    "vitest": "^5.0.1"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "icon": "assets/icon.svg",
-  "mcpName": "io.github.vikramgorla/swiss"
+  "mcpName": "io.github.netadvanced/mcp-swiss-ng"
 }

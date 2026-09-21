@@ -1,12 +1,12 @@
 name: Feature Request
-description: Suggest a new tool, module, or enhancement for mcp-swiss
+description: Suggest a new tool, module, or enhancement for mcp-swiss-ng
 title: "[Feature] "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        mcp-swiss only covers zero-authentication Swiss open data APIs. Please check that your suggestion fits this scope before submitting.
+        mcp-swiss-ng only covers zero-authentication Swiss open data APIs. Please check that your suggestion fits this scope before submitting.
 
   - type: dropdown
     id: type

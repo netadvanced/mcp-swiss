@@ -1,20 +1,15 @@
 <div align="center">
 
-<img src="assets/icon.svg" width="120" height="120" alt="mcp-swiss" />
+<img src="assets/icon.svg" width="120" height="120" alt="mcp-swiss-ng" />
 
-# mcp-swiss
+# mcp-swiss-ng
 
 **Swiss open data for AI — zero config, zero API keys**
 
-[![npm](https://img.shields.io/npm/v/mcp-swiss.svg?style=flat-square)](https://www.npmjs.com/package/mcp-swiss)
-[![CI](https://img.shields.io/github/actions/workflow/status/vikramgorla/mcp-swiss/ci.yml?style=flat-square&label=CI)](https://github.com/vikramgorla/mcp-swiss/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://opensource.org/licenses/MIT)
-[![MCP](https://img.shields.io/badge/MCP-compatible-D52B1E?style=flat-square)](https://modelcontextprotocol.io)
-[![Downloads](https://img.shields.io/npm/dm/mcp-swiss.svg?style=flat-square)](https://www.npmjs.com/package/mcp-swiss)
-[![Stars](https://img.shields.io/github/stars/vikramgorla/mcp-swiss?style=flat-square)](https://github.com/vikramgorla/mcp-swiss)
-[![Node](https://img.shields.io/node/v/mcp-swiss?style=flat-square)](https://nodejs.org)
-[![.mcpb](https://img.shields.io/badge/.mcpb-One--Click_Install-D52B1E?style=flat-square)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
-[![Claude Desktop](https://img.shields.io/badge/Claude_Desktop-Install-D52B1E?style=flat-square&logo=anthropic&logoColor=white)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[![CI](https://img.shields.io/github/actions/workflow/status/netadvanced/mcp-swiss-ng/ci.yml?style=flat-square&label=CI)](https://github.com/netadvanced/mcp-swiss-ng/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-stdio_%7C_HTTP-D52B1E?style=flat-square)](https://modelcontextprotocol.io)
+[![Node](https://img.shields.io/badge/node-22%2B-brightgreen?style=flat-square)](package.json)
 
 [Install](#installation) · [Tools](#tools) · [Demo](#demo-prompts) · [Data Sources](#data-sources)
 
@@ -22,9 +17,11 @@
 
 ---
 
-`mcp-swiss` is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives any AI assistant direct access to Swiss open data — trains, weather, rivers, maps, and companies.
+`mcp-swiss-ng` is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives any AI assistant direct access to Swiss open data — trains, weather, rivers, maps, and companies.
 
-**76 tools. No API keys. No registration. No server to run. Just `npx mcp-swiss`.**
+**82 tools. No API keys. No registration. Runs locally over stdio or as a shared Streamable HTTP server.**
+
+> **About this fork.** `mcp-swiss-ng` continues [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss) (MIT). On top of upstream v0.8.0 it adds a Streamable HTTP transport, discovery mode, the GWR building-register module, read-only tool annotations, request timeouts, trimmed tool schemas and current dependencies (Node 22+). It is not published to npm yet: install from GitHub or use the container image.
 
 ```
 🚆 Transport    — SBB, PostBus, trams, live departures, journey planning
@@ -34,7 +31,7 @@
 🏢 Companies    — ZEFIX federal registry, all 700K+ Swiss companies
 🎄 Holidays     — Swiss public & school holidays by canton
 🏛️ Parliament   — Bills, votes, members, speeches, cantonal affairs (OpenParlData.ch)
-🏔️ Avalanche    — SLF danger bulletins and warning regions
+🏔️ Avalanche    — SLF bulletin: danger levels, problems, warning regions
 💨 Air Quality  — NABEL stations, Swiss legal limits (LRV)
 📮 Swiss Post   — Postcode lookup and parcel tracking
 ⚡ Energy       — Electricity tariffs by municipality (ElCom)
@@ -48,6 +45,9 @@
 🏠 Real Estate  — Swiss property prices, rent index, housing data (BFS)
 🚗 Traffic      — ASTRA counting stations, daily volumes
 🌍 Earthquakes  — Swiss Seismological Service (SED/ETH Zürich), FDSN API
+❄️ Snow         — SLF snow depth, stations, and measurements
+🌿 Pollen       — MeteoSwiss pollen concentrations (~15 stations)
+🏘️ Buildings    — Federal register of buildings & dwellings (GWR/RegBL, BFS)
 ```
 
 ---
@@ -57,20 +57,20 @@
 ### Quick Start
 
 ```bash
-npx mcp-swiss
+npx -y github:netadvanced/mcp-swiss-ng
 ```
 
-That's it. No API keys, no `.env` files, no accounts. Pick your client below and paste the config.
+That's it. No API keys, no `.env` files, no accounts. The first run clones and builds the package (a few seconds); later runs use the npx cache. Pick your client below and paste the config.
 
 ---
 
 ### One-Click Install (.mcpb)
 
-`.mcpb` bundles work with Claude Desktop and any MCP Bundle-compatible app.
+`.mcpb` bundles work with Claude Desktop and any MCP Bundle-compatible app. They are attached to each GitHub release of this fork.
 
-[**⬇ Download mcp-swiss.mcpb**](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[**⬇ Download mcp-swiss.mcpb**](https://github.com/netadvanced/mcp-swiss-ng/releases/latest/download/mcp-swiss.mcpb)
 
-[![Install in Claude Desktop](https://img.shields.io/badge/Install_in_Claude_Desktop-D52B1E?style=for-the-badge&logo=anthropic&logoColor=white)](https://github.com/vikramgorla/mcp-swiss/releases/latest/download/mcp-swiss.mcpb)
+[![Install in Claude Desktop](https://img.shields.io/badge/Install_in_Claude_Desktop-D52B1E?style=for-the-badge&logo=anthropic&logoColor=white)](https://github.com/netadvanced/mcp-swiss-ng/releases/latest/download/mcp-swiss.mcpb)
 
 Open the downloaded file — your app handles the rest. No config editing, no terminal, no API keys.
 
@@ -88,7 +88,7 @@ Edit your config file:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -101,7 +101,7 @@ Restart Claude Desktop after saving.
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add swiss -- npx -y mcp-swiss
+claude mcp add swiss -- npx -y github:netadvanced/mcp-swiss-ng
 ```
 
 That's it — Claude Code will use it in your next session.
@@ -119,7 +119,7 @@ That's it — Claude Code will use it in your next session.
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -132,7 +132,7 @@ That's it — Claude Code will use it in your next session.
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -150,17 +150,17 @@ That's it — Claude Code will use it in your next session.
 
 #### One-click Install
 
-[<img src="https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522mcp-swiss%2522%255D%257D)
-[<img src="https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders">](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522mcp-swiss%2522%255D%257D)
+[<img src="https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code">](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522github%253Anetadvanced%252Fmcp-swiss-ng%2522%255D%257D)
+[<img src="https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders">](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522swiss%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522github%253Anetadvanced%252Fmcp-swiss-ng%2522%255D%257D)
 
 #### CLI Install
 
 ```bash
 # VS Code
-code --add-mcp '{"name":"swiss","command":"npx","args":["-y","mcp-swiss"]}'
+code --add-mcp '{"name":"swiss","command":"npx","args":["-y", "github:netadvanced/mcp-swiss-ng"]}'
 
 # VS Code Insiders
-code-insiders --add-mcp '{"name":"swiss","command":"npx","args":["-y","mcp-swiss"]}'
+code-insiders --add-mcp '{"name":"swiss","command":"npx","args":["-y", "github:netadvanced/mcp-swiss-ng"]}'
 ```
 
 #### Manual Config
@@ -173,7 +173,7 @@ Add to your VS Code User Settings (JSON) — press `Ctrl+Shift+P` → `Preferenc
     "servers": {
       "swiss": {
         "command": "npx",
-        "args": ["-y", "mcp-swiss"]
+        "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
       }
     }
   }
@@ -187,7 +187,7 @@ Or add to `.vscode/mcp.json` in your workspace (shareable with your team):
   "servers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -204,7 +204,7 @@ Add to `~/.codeium/windsurf/model_config.json`:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -221,7 +221,7 @@ Open VS Code `settings.json` and add:
   "cline.mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -231,12 +231,12 @@ Open VS Code `settings.json` and add:
 
 ### Any MCP Client
 
-`mcp-swiss` uses **stdio transport** and requires no environment variables. The universal config:
+By default `mcp-swiss-ng` uses **stdio transport** and needs no environment variables. The universal config:
 
 ```json
 {
   "command": "npx",
-  "args": ["-y", "mcp-swiss"]
+  "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
 }
 ```
 
@@ -245,16 +245,14 @@ This works with any MCP-compatible client — just plug it in.
 ### Docker
 
 ```bash
-docker pull vikramgorla/mcp-swiss
+docker pull ghcr.io/netadvanced/mcp-swiss-ng
 ```
 
-Use with any MCP client that supports Docker-based servers. The container uses stdio transport:
+The container speaks stdio by default:
 
 ```bash
 # Run directly (stdio)
-docker run -i vikramgorla/mcp-swiss
-
-# Use with Claude Desktop
+docker run -i --rm ghcr.io/netadvanced/mcp-swiss-ng
 ```
 
 For Claude Desktop, update your config to use Docker:
@@ -264,23 +262,19 @@ For Claude Desktop, update your config to use Docker:
   "mcpServers": {
     "swiss": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "vikramgorla/mcp-swiss"]
+      "args": ["run", "-i", "--rm", "ghcr.io/netadvanced/mcp-swiss-ng"]
     }
   }
 }
 ```
 
-Also available on GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/vikramgorla/mcp-swiss
-```
+To run it as a shared HTTP server instead, see [Remote access (Streamable HTTP)](#remote-access-streamable-http).
 
 ---
 
 ## Module Filtering
 
-By default, mcp-swiss loads all 21 modules (76 tools). For better token efficiency, load only the modules you need:
+By default, mcp-swiss-ng loads all 23 modules (82 tools). For better token efficiency, load only the modules you need:
 
 ### Select specific modules
 ```json
@@ -288,7 +282,7 @@ By default, mcp-swiss loads all 21 modules (76 tools). For better token efficien
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss", "--modules", "transport,weather"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--modules", "transport,weather"]
     }
   }
 }
@@ -300,7 +294,7 @@ By default, mcp-swiss loads all 21 modules (76 tools). For better token efficien
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss", "--preset", "commuter"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--preset", "commuter"]
     }
   }
 }
@@ -308,16 +302,75 @@ By default, mcp-swiss loads all 21 modules (76 tools). For better token efficien
 
 | Preset | Modules | Tools | Token Savings |
 |--------|---------|-------|---------------|
-| `commuter` | transport, weather, holidays | 14 | 81% |
-| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow | 19 | 75% |
-| `business` | companies, geodata, post, energy, statistics, snb | 24 | 67% |
-| `citizen` | parliament, voting, holidays, news | 17 | 77% |
-| `minimal` | transport | 5 | 93% |
-| `full` | all 21 modules (default) | 76 | — |
+| `commuter` | transport, weather, holidays | 14 | 83% |
+| `outdoor` | weather, avalanche, hiking, earthquakes, dams, snow, pollen | 22 | 73% |
+| `business` | companies, geodata, post, energy, statistics, snb, gwr | 27 | 67% |
+| `citizen` | parliament, voting, holidays, news | 17 | 79% |
+| `minimal` | transport | 5 | 94% |
+| `full` | all 23 modules (default) | 82 | — |
 
 Combine preset + modules: `--preset commuter --modules parliament`
 
-List available: `npx mcp-swiss --list-modules` or `npx mcp-swiss --list-presets`
+List available: `npx -y github:netadvanced/mcp-swiss-ng --list-modules` or `npx -y github:netadvanced/mcp-swiss-ng --list-presets`
+
+---
+
+## Remote access (Streamable HTTP)
+
+Run one shared server and point clients at a URL — needed for claude.ai (web), ChatGPT connectors and any remote MCP client.
+
+```bash
+# local only, no extra configuration
+npx -y github:netadvanced/mcp-swiss-ng --http --port 3000
+
+# reachable from outside: token and Host allow-list are mandatory
+docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
+  -e MCP_AUTH_TOKEN=change-me -e MCP_ALLOWED_HOSTS=mcp.example.ch:3000 \
+  ghcr.io/netadvanced/mcp-swiss-ng
+```
+
+- MCP endpoint: `http://<host>:3000/mcp` (Streamable HTTP, sessions via `Mcp-Session-Id`)
+- Health check: `GET /health` → `{"status":"ok","version":"…"}`, plus `sessions` on a loopback bind
+- A ready-made [`docker-compose.example.yml`](docker-compose.example.yml) includes a healthcheck.
+
+| Setting | Flag | Env | Default |
+|---|---|---|---|
+| Transport | `--http` | `MCP_TRANSPORT=http` | stdio |
+| Port | `--port` | `PORT` | `3000` |
+| Bind address | `--host` | `HOST` | `127.0.0.1` |
+| Bearer token for `/mcp` | — | `MCP_AUTH_TOKEN` | none |
+| Allowed `Host` headers (DNS-rebinding protection) | — | `MCP_ALLOWED_HOSTS` (comma list) | loopback only when bound to loopback |
+| CORS origin for browser clients | — | `MCP_CORS_ORIGIN` | none |
+| Max concurrent sessions | — | `MCP_MAX_SESSIONS` | `64` |
+| Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `30000` |
+
+Each session gets its own server instance. Idle sessions are dropped after 30 minutes and every session after 8 hours, so an open event stream cannot hold a slot indefinitely. Further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
+
+**The server refuses to start on a non-loopback address unless `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are both set.** The data is public, but an open server is an open proxy onto the upstream APIs, on your IP and their rate limits. Behind a reverse proxy, put the public hostname (with port, if it isn't the default) in `MCP_ALLOWED_HOSTS`.
+
+A client that wants `notifications/tools/list_changed` — for example in discovery mode — must keep the `GET /mcp` event stream open. Without it the notification is dropped; `swiss_discover` also returns the new schemas in its response, and `swiss_call` can run them meanwhile.
+
+Client config for a remote server (Claude Code shown):
+
+```bash
+claude mcp add --transport http swiss https://mcp-swiss.example.ch/mcp \
+  --header "Authorization: Bearer change-me"
+```
+
+---
+
+## Discovery mode
+
+Loading all 82 tool schemas costs several thousand tokens per conversation. With `--discovery` (or `MCP_SWISS_DISCOVERY=1`) the server starts with just two small meta-tools:
+
+- `swiss_discover` — no arguments: lists modules with descriptions and tool names. With `{"modules": ["transport", "weather"]}`: loads those modules, returns their schemas and sends `notifications/tools/list_changed`, so clients that support it refresh their tool list.
+- `swiss_call` — `{"tool": "get_connections", "arguments": {…}}` runs any loaded tool. This is the fallback for clients that don't re-read their tool list.
+
+`--discovery` combines with `--preset`/`--modules`, which then decide what is loaded up front.
+
+```json
+{ "command": "npx", "args": ["-y", "github:netadvanced/mcp-swiss-ng", "--discovery"] }
+```
 
 ---
 
@@ -337,17 +390,18 @@ Once connected, try asking your AI:
 | *"Plan my Saturday: train to Interlaken, check weather"* | Multiple tools chained |
 | *"Is next Monday a holiday in Zürich?"* | `get_public_holidays` |
 | *"What did the Swiss parliament vote on recently?"* | `search_parliament_business` |
-| *"What's the avalanche danger level in the Bernese Alps?"* | `get_avalanche_bulletin` |
+| *"What's the avalanche danger above Davos today?"* | `get_avalanche_bulletin` |
 | *"What's the postcode for Zermatt?"* | `search_postcode` |
 | *"Track my Swiss Post parcel 99.12.345678.12345678"* | `track_parcel` |
 | *"How much does electricity cost in Zürich vs Basel?"* | `search_municipality_energy` + `compare_electricity_tariffs` |
 | *"What's the population of canton Zug?"* | `get_population` |
+| *"When was Place de la Palud 2 in Lausanne built and how is it heated?"* | `search_buildings` + `get_building` |
 
 ---
 
 ## Tools
 
-> 76 tools across 21 modules. Full specifications: [`docs/tool-specs.md`](docs/tool-specs.md) · Machine-readable: [`docs/tools.schema.json`](docs/tools.schema.json)
+> 82 tools across 23 modules. Full specifications: [`docs/tool-specs.md`](docs/tool-specs.md) · Machine-readable: [`docs/tools.schema.json`](docs/tools.schema.json)
 
 ### 🚆 Transport (5 tools)
 
@@ -387,9 +441,9 @@ Once connected, try asking your AI:
 |------|-------------|
 | `search_companies` | Search by name, canton, legal form |
 | `get_company` | Full company details by ZEFIX `ehraid` |
-| `search_companies_by_address` | Companies registered at an address |
+| `search_companies_by_locality` | Companies with their registered seat in a commune |
 | `list_cantons` | All 26 Swiss cantons |
-| `list_legal_forms` | AG, GmbH, and all Swiss legal forms |
+| `list_legal_forms` | AG, GmbH, and all Swiss legal forms with their ZEFIX ids |
 
 ### 🎄 Holidays (3 tools)
 
@@ -417,8 +471,8 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_avalanche_bulletin` | Current avalanche bulletin with danger levels and PDF links |
-| `list_avalanche_regions` | All 22 Swiss avalanche warning regions |
+| `get_avalanche_bulletin` | Danger level, avalanche problems and advice for a region or coordinate |
+| `list_avalanche_regions` | The 135 SLF/EAWS warning regions with id, name and canton |
 
 ### 💨 Air Quality (2 tools)
 
@@ -488,7 +542,7 @@ Once connected, try asking your AI:
 | Tool | Description |
 |------|-------------|
 | `search_dams` | Search Swiss federal dams by name or keyword |
-| `get_dams_by_canton` | List all federal dams in a canton |
+| `get_dams_by_canton` | List the federally supervised dams in a canton |
 | `get_dam_details` | Detailed info on a specific dam (height, volume, purpose) |
 
 ### 🥾 Hiking / Trail Closures (2 tools)
@@ -502,9 +556,9 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_property_price_index` | Swiss property price index (BFS Immo-Monitoring) |
+| `get_property_price_index` | BFS residential property price index (IMPI), quarterly |
 | `search_real_estate_data` | Search BFS real estate datasets on opendata.swiss |
-| `get_rent_index` | Swiss rent index and housing cost data from BFS |
+| `get_rent_index` | Swiss consumer price index (incl. rents), monthly |
 
 ### 🚗 Traffic / ASTRA (3 tools)
 
@@ -530,6 +584,22 @@ Once connected, try asking your AI:
 | `list_snow_stations` | All 307 SLF snow measurement stations (IMIS automatic + manual study plots) |
 | `get_snow_measurements` | Detailed snow and weather measurements for a specific SLF station |
 
+### 🌿 Pollen / MeteoSwiss (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `get_pollen_current` | Current hourly pollen concentrations at any of 16 MeteoSwiss stations (7 types: Alder, Birch, Hazel, Beech, Ash, Oak, Grasses) |
+| `get_pollen_daily` | Daily pollen averages for trend analysis over configurable time range |
+| `list_pollen_stations` | All 16 MeteoSwiss automatic pollen monitoring stations with location details |
+
+### 🏘️ Buildings / GWR (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `search_buildings` | Find buildings in the Federal Register of Buildings and Dwellings (GWR) by address — EGID, coordinates, category, class, construction year |
+| `get_building` | Full decoded GWR record by EGID: status, construction year/period, floors, areas, heating & hot-water energy, parcel/EGRID, entrances, dwellings (rooms, area, floor) |
+| `buildings_near` | GWR buildings around a WGS84 point within a small radius (≤ 250 m), closest first |
+
 ---
 
 ## Data Sources
@@ -544,7 +614,7 @@ All official Swiss open data — no API keys required:
 | [zefix.admin.ch](https://www.zefix.admin.ch) | Federal company registry | [Swagger](https://www.zefix.admin.ch/ZefixREST/swagger-ui.html) |
 | [openholidaysapi.org](https://openholidaysapi.org) | Swiss public & school holidays | [API docs](https://openholidaysapi.org/swagger) |
 | [OpenParlData.ch](https://openparldata.ch) | Swiss Parliament data — federal & cantonal (CC BY 4.0) | [API docs](https://api.openparldata.ch/documentation) |
-| [whiterisk.ch](https://whiterisk.ch) / [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletins | [SLF](https://www.slf.ch/en/avalanche-bulletin-and-snow-situation.html) |
+| [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletin, EAWS CAAMLv6 (CC BY 4.0) | [API docs](https://aws.slf.ch/api/bulletin/caaml) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — BAFU/NABEL | Swiss air quality monitoring stations | [BAFU NABEL](https://www.bafu.admin.ch/bafu/en/home/topics/air/state/data/nabel.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss postcodes (Amtliches Ortschaftenverzeichnis) | [geo.admin.ch](https://api3.geo.admin.ch/api/doc.html) |
 | [strompreis.elcom.admin.ch](https://strompreis.elcom.admin.ch) | ElCom electricity tariffs by municipality | [ElCom](https://www.elcom.admin.ch/elcom/en/home.html) |
@@ -557,8 +627,10 @@ All official Swiss open data — no API keys required:
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss trail closures and hiking alerts | [swisstopo](https://www.swisstopo.admin.ch) |
 | [pxweb.bfs.admin.ch](https://www.pxweb.bfs.admin.ch) | BFS property prices + rent index | [BFS housing](https://www.bfs.admin.ch/bfs/en/home/statistics/construction-housing.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — ASTRA | Traffic counting stations + daily volumes | [ASTRA](https://www.astra.admin.ch) |
-| [arclink.ethz.ch](http://arclink.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](http://www.seismo.ethz.ch) |
+| [eida.ethz.ch](https://eida.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](https://www.seismo.ethz.ch) |
 | [measurement-api.slf.ch](https://measurement-api.slf.ch/public/api) | SLF snow depth + measurements (IMIS + study plots, CC BY 4.0) | [SLF](https://www.slf.ch) |
+| [data.geo.admin.ch](https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen/) | MeteoSwiss pollen concentrations (16 automatic stations, CC BY) | [MeteoSwiss](https://www.meteoswiss.admin.ch) |
+| [geo.admin.ch](https://api3.geo.admin.ch) — BFS | Federal Register of Buildings and Dwellings (GWR/RegBL), updated weekly | [BFS GWR](https://www.housing-stat.ch) |
 
 ---
 
@@ -566,8 +638,8 @@ All official Swiss open data — no API keys required:
 
 ```bash
 # Clone
-git clone https://github.com/vikramgorla/mcp-swiss.git
-cd mcp-swiss
+git clone https://github.com/netadvanced/mcp-swiss-ng.git
+cd mcp-swiss-ng
 
 # Install deps
 npm install
@@ -592,7 +664,7 @@ npm test
 
 ## Contributing
 
-We welcome contributions! mcp-swiss follows a strict PR-based workflow to keep the codebase clean and CI always green.
+We welcome contributions! mcp-swiss-ng follows a strict PR-based workflow to keep the codebase clean and CI always green.
 
 ### Quick links
 
@@ -615,9 +687,9 @@ We welcome contributions! mcp-swiss follows a strict PR-based workflow to keep t
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+
 - No API keys or accounts needed
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE). Originally created by [Vikram Gorla](https://github.com/vikramgorla/mcp-swiss); this fork is maintained by [Pierre Christen](https://github.com/netadvanced).

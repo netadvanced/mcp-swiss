@@ -1,10 +1,10 @@
-# mcp-swiss
-> Swiss open data MCP server — 68 tools, 20 modules, zero API keys
+# mcp-swiss-ng
+> Swiss open data MCP server — 82 tools, 23 modules, zero API keys
 
 ## What
 MCP (Model Context Protocol) server providing Swiss public data to AI assistants.
 
-## Tools (68 across 20 modules)
+## Tools (82 across 23 modules)
 - Transport: train/bus connections, departures, stations (SBB/PostBus)
 - Weather: MeteoSwiss live conditions, history
 - Hydrology: river/lake levels and temperatures (BAFU)
@@ -12,7 +12,7 @@ MCP (Model Context Protocol) server providing Swiss public data to AI assistants
 - Companies: business registry search (ZEFIX)
 - Holidays: public & school holidays by canton
 - Parliament: votes, councillors, sessions
-- Avalanche: SLF danger bulletins
+- Avalanche: SLF bulletin danger levels, problems, warning regions
 - Air Quality: NABEL station measurements
 - Swiss Post: postcode lookup, parcel tracking
 - Energy: electricity tariffs by municipality (ElCom)
@@ -26,11 +26,14 @@ MCP (Model Context Protocol) server providing Swiss public data to AI assistants
 - Real Estate: property prices, rent index
 - Traffic: ASTRA counting stations
 - Earthquakes: Swiss Seismological Service (SED)
+- Snow: SLF snow depth, stations, measurements
+- Pollen: MeteoSwiss pollen concentrations
+- Buildings (GWR): federal register of buildings & dwellings — search by address, details by EGID, buildings nearby
 
 ## Install
-npx mcp-swiss
+npx -y github:netadvanced/mcp-swiss-ng
 
 ## Links
-- npm: https://www.npmjs.com/package/mcp-swiss
-- GitHub: https://github.com/vikramgorla/mcp-swiss
-- Docs: https://github.com/vikramgorla/mcp-swiss/blob/main/docs/tool-specs.md
+- npm: https://www.npmjs.com/package/mcp-swiss-ng
+- GitHub: https://github.com/netadvanced/mcp-swiss-ng
+- Docs: https://github.com/netadvanced/mcp-swiss-ng/blob/main/docs/tool-specs.md

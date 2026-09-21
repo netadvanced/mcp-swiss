@@ -1,0 +1,27 @@
+# mcp-swiss-ng over Streamable HTTP — copy to docker-compose.yml and adjust.
+services:
+  mcp-swiss:
+    image: ghcr.io/netadvanced/mcp-swiss-ng:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      MCP_TRANSPORT: http
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Required on a non-loopback bind: Host headers accepted on /mcp
+      # (DNS-rebinding protection). Set to your public hostname.
+      MCP_ALLOWED_HOSTS: "localhost:3000,mcp-swiss.example.ch"
+      # Required on a non-loopback bind: "Authorization: Bearer <token>" on /mcp.
+      MCP_AUTH_TOKEN: "change-me"
+      # Concurrent sessions before /mcp answers 429 (default 64)
+      MCP_MAX_SESSIONS: "64"
+      # Optional: preset/modules/discovery are CLI flags; add them under `command:` e.g.
+      # MCP_SWISS_DISCOVERY: "1"
+      # MCP_SWISS_TIMEOUT_MS: "30000"
+    # command: ["--preset", "outdoor"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

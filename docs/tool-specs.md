@@ -1,9 +1,9 @@
 # mcp-swiss Tool Specifications
 
-> Complete human + machine-readable specification for all 73 MCP tools.
+> Complete human + machine-readable specification for all 82 MCP tools.
 > Generated from source
 
-> **Module filtering:** You don't have to load all 73 tools. Use `--modules transport,weather` to pick specific modules, or `--preset commuter` for curated bundles. See [Module Filtering](../README.md#module-filtering) in the README.
+> **Module filtering:** You don't have to load all 82 tools. Use `--modules transport,weather` to pick specific modules, or `--preset commuter` for curated bundles. See [Module Filtering](../README.md#module-filtering) in the README.
 
 ---
 
@@ -30,6 +30,8 @@
 - [Traffic / ASTRA Module (3 tools)](#traffic)
 - [Earthquakes / SED Module (3 tools)](#earthquakes)
 - [Snow Conditions / SLF Module (3 tools)](#snow-conditions)
+- [Pollen / MeteoSwiss Module (3 tools)](#pollen)
+- [Buildings / GWR Module (3 tools)](#buildings--gwr)
 
 ---
 
@@ -52,8 +54,8 @@
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | query | string | ⬜ | Station name to search for |
-| x | number | ⬜ | Longitude (WGS84) |
-| y | number | ⬜ | Latitude (WGS84) |
+| x | number | ⬜ | Latitude (WGS84) |
+| y | number | ⬜ | Longitude (WGS84) |
 | type | string | ⬜ | Filter: `all`, `station`, `poi`, `address` |
 
 > At least one of `query`, or both `x`+`y` should be provided.
@@ -231,10 +233,10 @@
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| x | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
-| y | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
-| limit | number | ⬜ | Number of results (default: 10) |
-| distance | number | ⬜ | Maximum search radius in meters |
+| x | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
+| y | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
+| limit | number | ⬜ | Keep only the nearest N stations |
+| distance | number | ⬜ | Drop stations further away than this, in metres |
 
 ### Output
 
@@ -819,26 +821,27 @@ No parameters required.
 
 ## Companies Module
 
-**Base API:** `https://www.zefix.admin.ch/ZefixREST/api/v1`  
-**Docs:** https://www.zefix.admin.ch/ZefixREST/swagger-ui.html  
-**Data source:** Federal Commercial Register (ZEFIX)  
-**Auth:** None required for search; some endpoints return 403
+**Base API:** `https://www.zefix.admin.ch/ZefixREST/api/v1`
+**Data source:** Federal Commercial Register (ZEFIX)
+**Auth:** None. This is the backend of the ZEFIX web app; the documented `ZefixPublicREST` API (OpenAPI at `/ZefixPublicREST/v3/api-docs`) needs credentials and answers 401 without them.
+
+The module reads three static reference lists once per process and caches them: `legalForm.json`, `registerOffice.json` and `community.json`. They turn a canton code into registry-office ids and a commune name into legal-seat ids, which is what the search endpoint actually filters on.
 
 ---
 
 ## `search_companies`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`  
-**Description:** Search the Swiss federal company registry (ZEFIX) by name, canton, or legal form. Returns up to 700K+ registered companies.
+**Module:** Companies
+**API source:** `POST https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`
+**Description:** Search the Swiss federal company registry (ZEFIX) by name, canton and legal form.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| name | string | ✅ | Company name or partial name to search |
-| canton | string | ⬜ | Canton abbreviation (e.g. `ZH`, `BE`, `GE`, `ZG`) |
-| legal_form | string | ⬜ | Legal form code (e.g. `0106`=GmbH, `0105`=AG) |
+| name | string | ✅ | Company name, at least 3 characters. `*` is a wildcard (`Migro*`) |
+| canton | string | ⬜ | One of the 26 canton codes (e.g. `ZH`, `BE`, `GE`, `ZG`) |
+| legal_form | number | ⬜ | Legal form id, e.g. `3` = AG, `4` = GmbH (see `list_legal_forms`) |
 | limit | number | ⬜ | Maximum results (default: 20) |
 
 ### Output
@@ -847,15 +850,17 @@ No parameters required.
 {
   "companies": [
     {
+      "name": "Migros-Genossenschafts-Bund",
       "ehraid": 119283,
-      "name": "Nestlé S.A.",
-      "uid": "CHE-116.281.788",
-      "legalSeat": "Vevey",
-      "legalFormCode": "0105",
-      "cantonAbbreviation": "VD",
-      "sogcDate": "2024-01-15",
+      "uid": "CHE-105.829.940",
+      "legalSeat": "Zürich",
+      "canton": "ZH",
+      "legalFormId": 5,
+      "legalForm": "Gen",
+      "status": "EXISTIEREND",
+      "shabDate": "2026-09-07",
       "deleteDate": null,
-      "status": "ACTIVE"
+      "excerpt": "https://zh.chregister.ch/cr-portal/auszug/auszug.xhtml?uid=CHE-105.829.940"
     }
   ],
   "hasMoreResults": false
@@ -864,105 +869,93 @@ No parameters required.
 
 ### Notes
 
-- `ehraid` is the **ZEFIX internal integer ID** — use this with `get_company` (NOT the CHE-xxx.xxx.xxx UID)
-- `uid` is the official UID (CHE-xxx.xxx.xxx) for reference only
-- `deleteDate` is non-null for dissolved/deleted companies
-- Legal form codes: `0101`=Sole proprietorship, `0103`=General partnership, `0104`=LP, `0105`=AG, `0106`=GmbH, `0107`=Cooperative, `0108`=Association, `0109`=Foundation
-- Use `canton` to narrow results (e.g. `ZG` for Zug crypto/fintech scene)
+- `ehraid` is the **ZEFIX internal integer id** — use this with `get_company` (NOT the CHE-xxx.xxx.xxx UID)
+- The search body sends `registryOffices` for the canton and `legalForms` for the legal form. Valais is the only canton with more than one registry office (three), and all of them are sent.
+- ZEFIX falls back to an inexact match when the exact name finds nothing, so `Banque` can also return `Bank …`
+- An unknown canton or legal form id is rejected with an error rather than silently ignored
+- `deleteDate` is non-null for dissolved companies
+- No results comes back from ZEFIX as HTTP 200 with an error envelope, or as a 404; both become `{"companies": [], "hasMoreResults": false}`
 
 ---
 
 ## `get_company`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/{ehraid}.json`  
-**Description:** Get full details of a Swiss company by its ZEFIX internal ID (`ehraid`). Includes registered address, purpose, capital, directors, and journal entries.
+**Module:** Companies
+**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/{ehraid}.json`
+**Description:** Full details of a Swiss company by its ZEFIX internal id (`ehraid`): registered address, purpose, branches, auditors and the most recent journal entries.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| ehraid | number | ✅ | ZEFIX internal integer ID (e.g. `119283`). **Get this from `search_companies`** — NOT the CHE-xxx.xxx.xxx UID format. |
+| ehraid | number | ✅ | ZEFIX internal integer id (e.g. `119283`). **Get this from `search_companies`** — NOT the CHE-xxx.xxx.xxx UID format. Digits only; anything else is rejected before the request is built. |
 
 ### Output
 
 ```json
 {
+  "name": "Migros-Genossenschafts-Bund",
   "ehraid": 119283,
-  "name": "Nestlé S.A.",
-  "uid": "CHE-116.281.788",
-  "legalFormCode": "0105",
-  "legalSeat": "Vevey",
-  "cantonAbbreviation": "VD",
+  "uidFormatted": "CHE-105.829.940",
+  "legalSeat": "Zürich",
+  "legalSeatId": 261,
+  "registerOfficeId": 20,
+  "legalFormId": 5,
+  "status": "EXISTIEREND",
   "address": {
-    "street": "Avenue Nestlé",
-    "houseNumber": "55",
-    "swissZipCode": "1800",
-    "town": "Vevey"
+    "street": "Limmatstrasse",
+    "houseNumber": "152",
+    "swissZipCode": "8005",
+    "town": "Zürich",
+    "country": "CH"
   },
-  "purpose": "Société holding. La Société a pour but la gestion d'un groupe international...",
-  "capitalNominal": 322000000,
-  "capitalCurrency": "CHF",
-  "status": "ACTIVE",
-  "sogcDate": "2024-01-15",
-  "deleteDate": null,
-  "shabDate": "2024-01-15"
+  "purpose": "Im Sinne des Sozialen Kapitals …",
+  "canton": "ZH",
+  "legalForm": "Cooperative",
+  "shabPub": [],
+  "shabPubTotal": 75
 }
 ```
 
 ### Notes
 
 - ⚠️ **Use `ehraid` (integer), NOT the CHE-xxx.xxx.xxx UID format**
-- `ehraid` is returned by `search_companies` in the `ehraid` field
-- `purpose` is the official registered purpose from the commercial register
-- `capitalNominal` is share capital in CHF (for AG/GmbH)
-- For dissolved companies, `deleteDate` and `status: "DELETED"` are set
+- `shabPub` (the SOGC journal) is capped at the 10 newest entries; `shabPubTotal` is the real count. Migros' full list alone is 60 KB.
+- The address field for the town is `town`, not `city`
+- For dissolved companies, `deleteDate` and a non-`EXISTIEREND` status are set
 
 ---
 
-## `search_companies_by_address`
+## `search_companies_by_locality`
 
-**Module:** Companies  
-**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`  
-**Description:** Search Swiss companies registered at a specific address, street, or locality.
+**Module:** Companies
+**API source:** `POST https://www.zefix.admin.ch/ZefixREST/api/v1/firm/search.json`
+**Description:** Companies whose registered seat is in a given commune or town.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| address | string | ✅ | Address, street name, or locality to search |
+| locality | string | ✅ | Commune or town name, e.g. `Zug`, `Lausanne`. Case- and accent-insensitive, and alternate names (`Zurigo`, `Losanna`) work. |
+| name | string | ⬜ | Optional company name filter, at least 3 characters |
 | limit | number | ⬜ | Maximum results (default: 20) |
 
 ### Output
 
-```json
-{
-  "companies": [
-    {
-      "ehraid": 203847,
-      "name": "Crypto Valley AG",
-      "uid": "CHE-123.456.789",
-      "legalSeat": "Zug",
-      "cantonAbbreviation": "ZG",
-      "status": "ACTIVE"
-    }
-  ],
-  "hasMoreResults": true
-}
-```
+Same shape as `search_companies`.
 
 ### Notes
 
-- Uses ZEFIX full-text search on the `name` field (which also matches address components in some cases)
-- For precise address filtering, use `search_companies` with `canton` to narrow down
-- `hasMoreResults: true` indicates more companies match than the limit
+- **ZEFIX has no street-address search.** Neither the internal search endpoint nor the documented `CompanySearchQuery` of the public API has an address field; the only geographic filters are canton, registry district and legal seat (commune). This tool resolves the locality to commune ids via `community.json` and sends them as `legalSeats`.
+- A street address (`Bahnhofstrasse 1`) matches no commune and is rejected with an error that says so
+- A commune name shared by several cantons (e.g. `Oberdorf`) searches all of them
 
 ---
 
 ## `list_cantons`
 
-**Module:** Companies  
-**API source:** Hardcoded (ZEFIX `/cantons` endpoint returns 403)  
+**Module:** Companies
+**API source:** Hardcoded (the ZEFIX `/cantons` endpoint returns 403)
 **Description:** List all 26 Swiss cantons with their official abbreviation codes.
 
 ### Input
@@ -974,30 +967,6 @@ No parameters required.
 ```json
 [
   { "code": "AG", "name": "Aargau" },
-  { "code": "AI", "name": "Appenzell Innerrhoden" },
-  { "code": "AR", "name": "Appenzell Ausserrhoden" },
-  { "code": "BE", "name": "Bern" },
-  { "code": "BL", "name": "Basel-Landschaft" },
-  { "code": "BS", "name": "Basel-Stadt" },
-  { "code": "FR", "name": "Fribourg" },
-  { "code": "GE", "name": "Geneva" },
-  { "code": "GL", "name": "Glarus" },
-  { "code": "GR", "name": "Graubünden" },
-  { "code": "JU", "name": "Jura" },
-  { "code": "LU", "name": "Lucerne" },
-  { "code": "NE", "name": "Neuchâtel" },
-  { "code": "NW", "name": "Nidwalden" },
-  { "code": "OW", "name": "Obwalden" },
-  { "code": "SG", "name": "St. Gallen" },
-  { "code": "SH", "name": "Schaffhausen" },
-  { "code": "SO", "name": "Solothurn" },
-  { "code": "SZ", "name": "Schwyz" },
-  { "code": "TG", "name": "Thurgau" },
-  { "code": "TI", "name": "Ticino" },
-  { "code": "UR", "name": "Uri" },
-  { "code": "VD", "name": "Vaud" },
-  { "code": "VS", "name": "Valais" },
-  { "code": "ZG", "name": "Zug" },
   { "code": "ZH", "name": "Zürich" }
 ]
 ```
@@ -1005,16 +974,15 @@ No parameters required.
 ### Notes
 
 - Returns hardcoded data — the ZEFIX `/cantons` API endpoint returns HTTP 403
-- Use `code` values with `search_companies` `canton` parameter
-- All 26 cantons included (full/half cantons treated as separate entries)
+- Use `code` values for the `search_companies` `canton` parameter
 
 ---
 
 ## `list_legal_forms`
 
-**Module:** Companies  
-**API source:** Hardcoded (ZEFIX `/legalForms` endpoint returns 403)  
-**Description:** List all Swiss company legal forms (AG, GmbH, Verein, Stiftung, etc.) with their numeric codes.
+**Module:** Companies
+**API source:** `https://www.zefix.admin.ch/ZefixREST/api/v1/legalForm.json`
+**Description:** List the Swiss company legal forms with the ids `search_companies` accepts.
 
 ### Input
 
@@ -1024,25 +992,18 @@ No parameters required.
 
 ```json
 [
-  { "code": "0101", "name": "Einzelunternehmen", "nameEn": "Sole proprietorship" },
-  { "code": "0103", "name": "Kollektivgesellschaft", "nameEn": "General partnership" },
-  { "code": "0104", "name": "Kommanditgesellschaft", "nameEn": "Limited partnership" },
-  { "code": "0105", "name": "Aktiengesellschaft (AG)", "nameEn": "Corporation (AG)" },
-  { "code": "0106", "name": "Gesellschaft mit beschränkter Haftung (GmbH)", "nameEn": "Limited liability company (GmbH)" },
-  { "code": "0107", "name": "Genossenschaft", "nameEn": "Cooperative" },
-  { "code": "0108", "name": "Verein", "nameEn": "Association" },
-  { "code": "0109", "name": "Stiftung", "nameEn": "Foundation" },
-  { "code": "0110", "name": "Kommanditaktiengesellschaft", "nameEn": "Partnership limited by shares" },
-  { "code": "0113", "name": "Filiale ausländischer Gesellschaft", "nameEn": "Branch of foreign company" },
-  { "code": "0114", "name": "Institut des öffentlichen Rechts", "nameEn": "Public law institution" }
+  { "id": 1, "abbr": "EIU", "name": "Einzelunternehmen", "nameEn": "Sole proprietorship" },
+  { "id": 3, "abbr": "AG", "name": "Aktiengesellschaft", "nameEn": "Corporation" },
+  { "id": 4, "abbr": "GmbH", "name": "Gesellschaft mit beschränkter Haftung", "nameEn": "Limited Liability Company" },
+  { "id": 5, "abbr": "Gen", "name": "Genossenschaft", "nameEn": "Cooperative" }
 ]
 ```
 
 ### Notes
 
-- Returns hardcoded data — the ZEFIX `/legalForms` API endpoint returns HTTP 403
-- Use `code` values with `search_companies` `legal_form` parameter
-- Most common: `0105` (AG) and `0106` (GmbH) make up the majority of registered companies
+- Live list from ZEFIX, 18 forms. The ids are the ones the search endpoint filters on — the eCH-0097 codes (`0101`, `0106`, …) are not accepted here.
+- Most common: `3` (AG) and `4` (GmbH)
+- The placeholder form with id `0` ("unknown") is dropped
 
 ---
 
@@ -1300,12 +1261,14 @@ Or if not a holiday:
 ```json
 {
   "count": 2,
+  "total": 2,
   "affairId": 296480,
   "votes": [
     {
       "id": 5001,
       "affairId": 296480,
       "subject": "Gesamtabstimmung",
+      "type": "Schlussabstimmung",
       "meaningYes": "Annahme der Motion",
       "meaningNo": "Ablehnung der Motion",
       "yes": 102,
@@ -1322,6 +1285,7 @@ Or if not a holiday:
 
 - Not all affairs have recorded votes — some return empty arrays
 - `meaningYes` / `meaningNo` explain what each vote outcome means
+- An affair with hundreds of votes is trimmed to fit the response budget; `omitted` then says how many were dropped
 
 ---
 
@@ -1572,107 +1536,114 @@ Or if not a holiday:
 
 ## Avalanche Module
 
-**Base API:** `https://aws.slf.ch` (bulletins) / `https://whiterisk.ch` (interactive map)  
-**Auth:** None required for PDF bulletins and map; JSON API requires auth  
-**Data source:** SLF – WSL Institute for Snow and Avalanche Research
+**Base API:** `https://aws.slf.ch/api` (OpenAPI at `https://aws.slf.ch/api/bulletin/caaml`)  
+**Auth:** None. The bulletin endpoints are public; only `/api/bulletin-preview` needs a token  
+**Data source:** SLF – WSL Institute for Snow and Avalanche Research (CC BY 4.0)  
+**Format:** EAWS CAAMLv6 JSON. The danger by elevation and aspect sits on the avalanche problems, not on the danger rating.
 
 ---
 
 ## `get_avalanche_bulletin`
 
 **Module:** Avalanche  
-**API source:** `https://aws.slf.ch/api/bulletin/document/full/<lang>` (PDF links)  
-**Description:** Get the current Swiss avalanche danger bulletin from SLF. Returns current bulletin URLs, danger level descriptions, and links to the interactive map. Published daily at ~08:00 and updated at ~17:00 Swiss time (October–May).
+**API source:** `https://aws.slf.ch/api/bulletin/caaml/<lang>/json` (and `/geojson` for coordinate lookups)  
+**Description:** The avalanche bulletin in force for one warning region, a coordinate, or the whole country: danger level, avalanche problems with aspect and elevation, validity window and the SLF advice text.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| region | string | ⬜ | Region ID (e.g. CH-9 for Central Graubünden) or name. Use `list_avalanche_regions` for options. |
-| language | string | ⬜ | Language for bulletin links: `de`, `en`, `fr`, `it` (default: en) |
+| region | string | ⬜ | EAWS region id (e.g. `CH-5123`) or name (e.g. `Davos`). See `list_avalanche_regions`. |
+| lat / lon | number | ⬜ | WGS84 coordinate, given together. Resolved against the bulletin outlines. Alternative to `region`. |
+| language | string | ⬜ | `de`, `en`, `fr`, `it` (default: en) |
+| date | string | ⬜ | `YYYY-MM-DD` or an ISO timestamp for an archived bulletin. Omit for the current one. |
+
+With neither `region` nor a coordinate, the answer is a national overview: one entry per danger area, without the prose.
 
 ### Output
 
 ```json
 {
-  "date": "2026-01-15",
-  "source": "SLF – WSL Institute for Snow and Avalanche Research",
-  "bulletin_url": {
-    "interactive_map": "https://whiterisk.ch/en/conditions",
-    "pdf_full": "https://aws.slf.ch/api/bulletin/document/full/en",
-    "pdf_regions": {
-      "de": "https://aws.slf.ch/api/bulletin/document/full/de",
-      "en": "https://aws.slf.ch/api/bulletin/document/full/en",
-      "fr": "https://aws.slf.ch/api/bulletin/document/full/fr",
-      "it": "https://aws.slf.ch/api/bulletin/document/full/it"
+  "bulletin_in_force": true,
+  "region": { "id": "CH-5123", "name": "Davos", "canton": "GR" },
+  "danger": { "level": 3, "label": "considerable", "within_level": "neutral", "period": "all_day" },
+  "problems": [
+    {
+      "type": "persistent_weak_layers",
+      "danger_level": 3,
+      "aspects": ["N", "NE", "E", "SE", "W", "NW"],
+      "elevation": "above 2200 m",
+      "period": "all_day",
+      "core_zone": "Danger level \"considerable\" (3=) in west to northeast to southeast facing aspects above 2200m.",
+      "advice": "Weak layers in the old snowpack necessitate caution. …"
     }
-  },
-  "danger_scale": {
-    "1": "Low (1/5) — No special precautions needed",
-    "2": "Moderate (2/5) — Careful route selection on steep slopes",
-    "3": "Considerable (3/5) — Careful assessment required; natural and human-triggered avalanches possible",
-    "4": "High (4/5) — Very careful assessment; spontaneous avalanches likely",
-    "5": "Very High (5/5) — Extraordinary situation; avoid all avalanche terrain"
-  },
-  "schedule": {
-    "morning_bulletin": "~08:00 CET/CEST",
-    "afternoon_update": "~17:00 CET/CEST",
-    "season": "October to May (daily). Summer bulletins are occasional."
-  },
-  "region": {
-    "id": "CH-9",
-    "name": "Central Graubünden",
-    "canton": "GR",
-    "typical_elevation_m": 2500,
-    "bulletin_link": "https://whiterisk.ch/en/conditions#region=CH-9"
-  }
+  ],
+  "valid": { "startTime": "2026-02-10T07:00:00Z", "endTime": "2026-02-10T16:00:00Z" },
+  "published": "2026-02-10T07:00:00Z",
+  "next_update": "2026-02-10T16:00:00Z",
+  "snowpack": "Snowpack: Snowpack structure is unfavourable in many locations …",
+  "weather_outlook": "Weather forecast to Tuesday: …",
+  "tendency": "Outlook for Wednesday and Thursday: …",
+  "covers_regions": ["CH-5123", "CH-5215", "…"],
+  "danger_scale": { "1": "Low — …", "5": "Very high — …" },
+  "source": { "provider": "SLF – …", "api": "…", "map": "…", "pdf": "…" }
+}
+```
+
+Out of season the same call answers without an error:
+
+```json
+{
+  "bulletin_in_force": false,
+  "note": "No avalanche bulletin is in force right now.",
+  "season": "SLF publishes the bulletin twice daily (~08:00 and ~17:00) …",
+  "last_bulletin": { "published": "2026-05-17T15:00:00Z", "valid_until": "2026-05-18T15:00:00Z" },
+  "source": { "…": "…" }
 }
 ```
 
 ### Notes
 
-- The SLF JSON API (used by White Risk app) requires authentication — this tool returns PDF/map URLs instead
-- Interactive map at whiterisk.ch shows real-time danger levels by region
-- Bulletin season: October–May daily; summer bulletins are occasional
-- For programmatic access to raw JSON data, contact SLF at lawinfo@slf.ch
+- Danger levels are the EAWS scale 1–5. `within_level` is SLF's own thirds within a level (`minus`, `neutral`, `plus`), which the bulletin also writes as 3-, 3= and 3+.
+- `danger_by_period` appears only when the danger changes during the day; SLF then publishes an `all_day` and a `later` rating.
+- `last_bulletin` comes from `/api/bulletin-list/caaml/<lang>/json?limit=1`, so the off-season answer says when the season actually ended.
+- SLF drops regions without enough snow, so a region can be missing from a bulletin that is otherwise in force.
 
 ---
 
 ## `list_avalanche_regions`
 
 **Module:** Avalanche  
-**API source:** Hardcoded (official SLF/EAWS region definitions)  
-**Description:** List all Swiss avalanche warning regions as defined by SLF/EAWS. Returns region IDs, names, cantons, and typical elevations.
+**API source:** Bundled — the EAWS micro-regions from the SLF bulletin, cantons from swisstopo boundaries  
+**Description:** The 135 SLF/EAWS avalanche warning regions with id, name and canton.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ⬜ | Filter regions by canton abbreviation (e.g. GR, VS, BE). Optional. |
+| search | string | ⬜ | Match on region id or name, case-insensitive |
+| canton | string | ⬜ | Canton code, e.g. `GR` |
 
 ### Output
 
 ```json
 {
-  "count": 22,
-  "source": "SLF/EAWS Swiss Avalanche Warning Regions",
+  "count": 2,
+  "total": 135,
   "regions": [
-    { "id": "CH-1",  "name": "Jura",                   "canton": "JU/NE/VD",    "typical_elevation_m": 800  },
-    { "id": "CH-6",  "name": "Bernese Alps North",      "canton": "BE",          "typical_elevation_m": 2000 },
-    { "id": "CH-7",  "name": "Bernese Alps South",      "canton": "BE/VS",       "typical_elevation_m": 2500 },
-    { "id": "CH-9",  "name": "Central Graubünden",      "canton": "GR",          "typical_elevation_m": 2500 },
-    { "id": "CH-10", "name": "Prättigau & Davos",       "canton": "GR",          "typical_elevation_m": 2000 }
+    { "id": "CH-6112", "name": "obere Leventina", "canton": "TI" },
+    { "id": "CH-6115", "name": "untere Leventina", "canton": "TI" }
   ],
-  "usage": "Pass region ID (e.g. 'CH-9') to get_avalanche_bulletin for region-specific bulletin link",
-  "bulletin_map": "https://whiterisk.ch/en/conditions"
+  "note": "Region names are local toponyms and are the same in all four bulletin languages. …",
+  "source": "SLF avalanche bulletin (EAWS micro-regions), cantons from swisstopo boundaries"
 }
 ```
 
 ### Notes
 
-- 22 official Swiss avalanche warning regions (CH-1 through CH-22)
-- Region IDs follow the EAWS (European Avalanche Warning Services) naming scheme
-- Filter by canton to narrow to a specific area
+- Ids are EAWS micro-region codes (`CH-5123`), not the older coarse region numbering.
+- Names are the local toponyms SLF uses and are identical in de/fr/it/en.
+- CH-3311 is Liechtenstein, which the SLF bulletin covers; it is the one region with no canton.
 
 ---
 
@@ -1802,7 +1773,7 @@ No parameters required.
 ### Notes
 
 - Must be exactly 4 digits
-- Returns `found: false` if postcode is not in the official registry
+- Errors if the postcode is not in the official registry
 - Canton is identified via reverse-geocoding the PLZ centroid
 - Coordinates are the centroid of the PLZ area
 
@@ -2027,7 +1998,7 @@ No parameters required.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ❌ | Canton name or 2-letter code (e.g. 'ZH', 'Zürich', 'Geneva'). Omit for Switzerland total. Use 'all' for all cantons. |
-| year | number | ❌ | Year of data (2010–2024). Default: 2024 |
+| year | number | ❌ | Year of data, from 2010. Default: the latest vintage the cube carries |
 
 ### Output
 
@@ -2287,13 +2258,14 @@ Search Swiss federal dams by name or keyword (SFOE federal supervision registry)
 
 ### `get_dams_by_canton`
 
-List all federal dams in a Swiss canton.
+List the federally supervised dams in a Swiss canton. The response carries `total_in_canton`, so a truncated list is visible as such.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ✅ | Canton abbreviation (e.g. 'VS', 'GR', 'BE') |
+| limit | number | ❌ | Dams to return, 1–100 (default: 20) |
 
 ---
 
@@ -2342,14 +2314,15 @@ Get trail closures near given coordinates.
 
 ### `get_property_price_index`
 
-Swiss property price index from BFS Immo-Monitoring.
+Swiss residential property price index (IMPI) from BFS, quarterly from 2017-Q1, base Q4 2019 = 100. Switzerland as a whole; the index is not broken down by canton.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation to filter (e.g. 'ZH') |
-| property_type | string | ❌ | 'apartment', 'house', or 'all' (default: 'all') |
+| type | string | ❌ | 'all', 'houses' or 'apartments' (default: 'all') |
+| from | string | ❌ | Inclusive start, e.g. '2020Q1' or '2020' |
+| to | string | ❌ | Inclusive end, e.g. '2024Q4' or '2024' |
 
 ---
 
@@ -2368,14 +2341,14 @@ Search BFS real estate datasets on opendata.swiss.
 
 ### `get_rent_index`
 
-Swiss rent index and housing cost data from BFS.
+Swiss national consumer price index (LIK/IPC), which includes residential rents — not a dedicated rent index. Monthly. The `coverage` field reports the period the source actually holds.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation (e.g. 'ZH') |
-| year | number | ❌ | Reference year (e.g. 2024) |
+| year | number | ❌ | Reference year, 1982 onward (e.g. 2024) |
+| limit | number | ❌ | Recent months, 1–60 (default: 24); ignored when `year` is set |
 
 ---
 
@@ -2514,5 +2487,147 @@ Get detailed snow and weather measurements for a specific SLF station. IMIS stat
 
 ---
 
+## Pollen
+
+### `get_pollen_current`
+
+Get current hourly pollen concentrations at a MeteoSwiss pollen monitoring station. Returns the most recent hours of data for 7 pollen types: Alder, Birch, Hazel, Beech, Ash, Oak, and Grasses. Source: MeteoSwiss.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| station | string | ✅ | Station code (e.g. "PZH" for Zürich, "PBE" for Bern, "PBS" for Basel). Use list_pollen_stations for all codes |
+
+---
+
+### `get_pollen_daily`
+
+Get daily pollen concentration averages at a MeteoSwiss pollen monitoring station. Returns daily readings for 7 pollen types over the requested number of days. Source: MeteoSwiss.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| station | string | ✅ | Station code (e.g. "PZH" for Zürich, "PBE" for Bern). Use list_pollen_stations for all codes |
+| days | number | ❌ | Number of recent days to return (default: 7, max: 90) |
+
+---
+
+### `list_pollen_stations`
+
+List all 16 MeteoSwiss automatic pollen monitoring stations in Switzerland. Returns station codes, names, cantons, altitude, and coordinates. Source: MeteoSwiss.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| canton | string | ❌ | Filter by canton abbreviation (e.g. ZH, BE, GE, TI) |
+
+---
+
+## Buildings / GWR
+
+Federal Register of Buildings and Dwellings (GWR / RegBL) maintained by the Swiss Federal Statistical Office (BFS), served by the geo.admin.ch REST API (layer `ch.bfs.gebaeude_wohnungs_register`, updated weekly, no authentication). GWR code values (category, class, status, construction period, heating/hot-water generator and energy source, dwelling floor/status) are decoded into English labels.
+
+### `search_buildings`
+
+Search the GWR by address. Returns matching buildings with EGID (federal building identifier), address, coordinates, category, class, construction year, floors and dwelling count. Use `get_building` with the EGID for full details.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| address | string | ✅ | Address text: street + number + postcode/locality (e.g. "Place de la Palud 2 Lausanne") |
+| limit | number | ❌ | Maximum number of buildings to return (default: 5, max: 20) |
+
+### Output (example)
+
+```json
+{
+  "query": "Place de la Palud 2 Lausanne",
+  "count": 1,
+  "buildings": [
+    {
+      "egid": 2119257,
+      "address": "Place de la Palud 2, 1003 Lausanne",
+      "name": "Hôtel Seigneux (Hôtel de Ville)",
+      "municipality": "Lausanne",
+      "canton": "VD",
+      "category": "Non-residential",
+      "class": "Office building",
+      "status": "Existing",
+      "construction_year": 1700,
+      "construction_period": "Before 1919",
+      "floors": 5,
+      "dwellings": null,
+      "lat": 46.521793,
+      "lon": 6.632926
+    }
+  ],
+  "source": "Federal Register of Buildings and Dwellings (GWR), BFS — via api3.geo.admin.ch"
+}
+```
+
+---
+
+### `get_building`
+
+Full GWR record of a building by EGID: category, class, status, construction year/month/period, demolition year, floors, footprint area, volume, energy reference area, heating and hot-water systems (heat generator + energy source + last update), parcel number/EGRID, municipality (BFS number), canton, WGS84 + LV95 coordinates, all entrances/addresses and dwellings (EWID, administrative number, floor, rooms, area, kitchen, status).
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| egid | number | ✅ | Federal building identifier EGID (e.g. 2119257) |
+| max_dwellings | number | ❌ | Maximum number of dwellings to list (default: 50, max: 500; 0 = summary only) |
+
+### Output (abridged)
+
+```json
+{
+  "egid": 882657,
+  "address": "Place Marc-Louis-Arlaud 1, 1003 Lausanne",
+  "municipality": "Lausanne",
+  "bfs_municipality_number": 5586,
+  "canton": "VD",
+  "coordinates": { "lat": 46.522588, "lon": 6.631986, "lv95_e": 2538095.949, "lv95_n": 1152675.942 },
+  "category": "Residential with secondary use",
+  "class": "Building with three or more dwellings",
+  "status": "Existing",
+  "construction_year": 1918,
+  "construction_period": "Before 1919",
+  "floors": 4,
+  "footprint_area_m2": 735,
+  "volume_m3": 11552,
+  "heating": [{ "generator": "Boiler (several buildings)", "energy_source": "Gas", "updated": "2001-11-29" }],
+  "hot_water": [{ "generator": "Boiler", "energy_source": "Gas", "updated": "2001-11-29" }],
+  "parcel": { "number": "10193", "egrid": "CH633678577756", "official_building_number": "5420" },
+  "entrances": [{ "edid": 0, "address": "Place Marc-Louis-Arlaud 1, 1003 Lausanne", "lat": 46.522588, "lon": 6.631986 }],
+  "dwellings_summary": { "count": 15, "listed": 15, "total_rooms": 45, "total_area_m2": 1286 },
+  "dwellings": [
+    { "ewid": 1, "admin_number": "101", "floor": "Floor 1", "location": null, "rooms": 3, "area_m2": 79, "kitchen": true, "multi_floor": false, "construction_year": 1999, "status": "Existing" }
+  ],
+  "data_as_of": "2026-09-17"
+}
+```
+
+---
+
+### `buildings_near`
+
+List GWR buildings around a WGS84 point within a small radius, closest first (one entry per building, using its closest entrance). The upstream identify service caps results at ~200 features; in dense areas a `note` is added suggesting a smaller radius.
+
+### Input
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| lat | number | ✅ | Latitude (WGS84), e.g. 46.5218 |
+| lon | number | ✅ | Longitude (WGS84), e.g. 6.6329 |
+| radius | number | ❌ | Search radius in metres (default: 50, max: 250) |
+| limit | number | ❌ | Maximum number of buildings to return (default: 10, max: 50) |
+
+---
+
 *Specification generated from mcp-swiss source code.*  
-*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), arclink.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow)*
+*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), eida.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*

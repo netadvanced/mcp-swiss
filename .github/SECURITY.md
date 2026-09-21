@@ -11,7 +11,7 @@
 
 ### What IS a security issue
 
-- **Dependency vulnerabilities** — a transitive dependency with a known CVE that could affect mcp-swiss users
+- **Dependency vulnerabilities** — a transitive dependency with a known CVE that could affect mcp-swiss-ng users
 - **Parameter injection** — crafted tool arguments that cause unintended behaviour (e.g. SSRF via URL manipulation in tool parameters)
 - **Data leakage** — tool responses that inadvertently expose information beyond what the upstream API returns
 - **Prototype pollution** — in JSON parsing or argument handling
@@ -25,15 +25,11 @@
 
 ## Reporting a vulnerability
 
-**Do not open a public GitHub issue for security vulnerabilities.**
+**Open a GitHub issue:** https://github.com/netadvanced/mcp-swiss-ng/issues/new
 
-Use one of:
+Since mcp-swiss-ng handles no credentials, tokens, or personal data (all upstream APIs are public Swiss open data), public issue reporting is fine. If you believe the issue is sensitive, use GitHub's private vulnerability reporting:
 
-1. **GitHub private vulnerability reporting** — preferred  
-   Go to [Security → Report a vulnerability](https://github.com/vikramgorla/mcp-swiss/security/advisories/new)
-
-2. **Email**  
-   Send details to: `security@[maintainer-domain]` *(update this before going public)*
+- [Security → Report a vulnerability](https://github.com/netadvanced/mcp-swiss-ng/security/advisories/new)
 
 Please include:
 - Description of the vulnerability
@@ -41,15 +37,24 @@ Please include:
 - Potential impact
 - Suggested fix (if you have one)
 
-## Response timeline
+## Contributing a fix
 
-| Stage | Target |
-|-------|--------|
-| Acknowledgement | 48 hours |
-| Triage & severity assessment | 7 days |
-| Patch released | 30 days |
-| Public disclosure | After patch is released |
+This is a community-maintained open-source project. If you find a vulnerability, we'd love your help fixing it:
+
+1. Open a GitHub issue describing the vulnerability
+2. Fork the repo and submit a PR with the fix
+3. We'll review and merge as quickly as we can
+
+We don't guarantee specific response timelines, but we take security seriously and will address issues as fast as possible.
 
 ## Notes
 
-mcp-swiss handles **no credentials, tokens, or personal data**. All upstream APIs are public Swiss open data. The tool runs locally via stdio — it does not expose any network port or server.
+All upstream APIs are public Swiss open data, so the server stores no personal data and needs no API keys.
+
+By default it runs locally over stdio and opens no port. With `--http` (or `MCP_TRANSPORT=http`) it listens on 127.0.0.1 and serves `/mcp` and `/health`. What to know before exposing it:
+
+- Binding to a non-loopback address requires `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS`; the server refuses to start otherwise. `MCP_AUTH_TOKEN` is the one secret it handles — pass it through the environment, not the command line.
+- `MCP_ALLOWED_HOSTS` is the Host allow-list behind the SDK's DNS-rebinding protection. On a loopback bind it defaults to loopback names.
+- Sessions are capped (`MCP_MAX_SESSIONS`, default 64) and dropped after 30 minutes idle. Request bodies are capped at 1 MB.
+- `MCP_CORS_ORIGIN` is off by default. Setting it to `*` lets any web page reach the server through a visitor's browser.
+- An open server is an open proxy onto the upstream Swiss APIs, using your IP and their rate limits.

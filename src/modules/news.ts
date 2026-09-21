@@ -1,5 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { fetchText } from "../utils/http.js";
 
 // ── SRF RSS Feed IDs ─────────────────────────────────────────────────────────
 // Verified working feeds (tested March 2026)
@@ -72,15 +71,7 @@ export function parseRssItems(xml: string): NewsArticle[] {
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
 async function fetchFeed(feedId: number): Promise<string> {
-  const url = `${BASE_URL}/${feedId}`;
-  const response = await fetch(url, {
-    headers: { "User-Agent": "mcp-swiss/1.0.0" },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
-  }
-  return response.text();
+  return fetchText(`${BASE_URL}/${feedId}`);
 }
 
 // ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -177,72 +168,25 @@ export async function handleSearchSwissNews(args: {
   return JSON.stringify(result, null, 2);
 }
 
-// ── Tool registration ─────────────────────────────────────────────────────────
-
-export function registerNewsTools(server: McpServer): void {
-  server.tool(
-    "get_swiss_news",
-    "Get the latest Swiss news headlines from SRF (Schweizer Radio und Fernsehen). Returns top news articles with title, description, link, and publication date.",
-    {
-      category: z
-        .enum(["switzerland", "international", "economy"])
-        .optional()
-        .describe(
-          'News category. "switzerland" = domestic Swiss news (default), "international" = world news, "economy" = business & economy.'
-        ),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
-        .optional()
-        .describe("Number of articles to return (default: 10, max: 50)"),
-    },
-    async (args) => {
-      const text = await handleGetSwissNews(args);
-      return { content: [{ type: "text", text }] };
-    }
-  );
-
-  server.tool(
-    "search_swiss_news",
-    "Search Swiss news headlines from SRF by keyword. Searches across all available news categories and returns matching articles.",
-    {
-      query: z.string().min(1).describe("Search keyword or phrase to find in news articles"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(20)
-        .optional()
-        .describe("Maximum number of results to return (default: 5, max: 20)"),
-    },
-    async (args) => {
-      const text = await handleSearchSwissNews(args);
-      return { content: [{ type: "text", text }] };
-    }
-  );
-}
-
 // ── Adapter exports for index.ts integration ──────────────────────────────────
 
 export const newsTools = [
   {
     name: "get_swiss_news",
     description:
-      "Get the latest Swiss news headlines from SRF (Schweizer Radio und Fernsehen). Returns top news articles with title, description, link, and publication date.",
+      "Latest SRF news headlines",
     inputSchema: {
       type: "object" as const,
       properties: {
         category: {
           type: "string",
           enum: ["switzerland", "international", "economy"],
-          description:
-            'News category. "switzerland" = domestic Swiss news (default), "international" = world news, "economy" = business & economy.',
+          default: "switzerland",
         },
         limit: {
           type: "number",
-          description: "Number of articles to return (default: 10, max: 50)",
+          description: "max 50",
+          default: 10,
         },
       },
     },
@@ -250,18 +194,19 @@ export const newsTools = [
   {
     name: "search_swiss_news",
     description:
-      "Search Swiss news headlines from SRF by keyword. Searches across all available news categories and returns matching articles.",
+      "Keyword search in current SRF headlines (all categories)",
     inputSchema: {
       type: "object" as const,
       required: ["query"],
       properties: {
         query: {
           type: "string",
-          description: "Search keyword or phrase to find in news articles",
+          description: "Keyword or phrase",
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 5, max: 20)",
+          description: "max 20",
+          default: 5,
         },
       },
     },

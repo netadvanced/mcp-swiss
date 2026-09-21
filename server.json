@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.vikramgorla/swiss",
+  "name": "io.github.netadvanced/mcp-swiss-ng",
   "title": "Switzerland MCP 🇨🇭",
-  "description": "Swiss open data MCP server. 76 tools, zero API keys. Transport, weather, geodata, news, rates.",
+  "description": "Swiss open data MCP server. 82 tools, zero API keys. Transport, weather, geodata, news, rates.",
   "repository": {
-    "url": "https://github.com/vikramgorla/mcp-swiss",
+    "url": "https://github.com/netadvanced/mcp-swiss-ng",
     "source": "github"
   },
-  "version": "0.7.1",
+  "version": "0.9.0",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/vikramgorla/mcp-swiss/main/assets/icon.svg",
+      "src": "https://raw.githubusercontent.com/netadvanced/mcp-swiss-ng/main/assets/icon.svg",
       "mimeType": "image/svg+xml"
     },
     {
-      "src": "https://raw.githubusercontent.com/vikramgorla/mcp-swiss/main/assets/icon.png",
+      "src": "https://raw.githubusercontent.com/netadvanced/mcp-swiss-ng/main/assets/icon.png",
       "mimeType": "image/png",
       "sizes": [
         "256x256"
@@ -24,8 +24,8 @@
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "mcp-swiss",
-      "version": "0.7.1",
+      "identifier": "mcp-swiss-ng",
+      "version": "0.9.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

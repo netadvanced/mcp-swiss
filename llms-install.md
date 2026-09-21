@@ -1,11 +1,11 @@
-# Installing mcp-swiss
+# Installing mcp-swiss-ng
 
 ## Prerequisites
 - Node.js 18+
 
 ## Quick Start
 ```bash
-npx mcp-swiss
+npx -y github:netadvanced/mcp-swiss-ng
 ```
 
 ## Configuration for AI Platforms
@@ -17,7 +17,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -30,7 +30,7 @@ Add to `.vscode/mcp.json`:
   "servers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -43,7 +43,7 @@ Add to `~/.cursor/mcp.json`:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -56,7 +56,7 @@ Add to `~/.codeium/windsurf/model_config.json`:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -69,7 +69,7 @@ Add to VS Code `settings.json`:
   "cline.mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }
@@ -82,7 +82,7 @@ Add to `~/.aws/amazonq/mcp.json`:
   "mcpServers": {
     "swiss": {
       "command": "npx",
-      "args": ["-y", "mcp-swiss"]
+      "args": ["-y", "github:netadvanced/mcp-swiss-ng"]
     }
   }
 }

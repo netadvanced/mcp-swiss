@@ -5,9 +5,7 @@
 //   Monthly data: https://data.snb.ch/api/cube/devkum/data/csv/en
 //   Annual data:  https://data.snb.ch/api/cube/devkua/data/csv/en
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { fetchJSON } from "../utils/http.js";
+import { fetchJSON, fetchText } from "../utils/http.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -180,18 +178,9 @@ async function fetchRatesMap(): Promise<Map<string, RateEntry[]>> {
     return _ratesMapCache;
   }
 
-  const response = await fetch(SNB_MONTHLY_CSV, {
-    headers: {
-      "Accept": "text/csv,text/plain,*/*",
-      "User-Agent": "mcp-swiss/0.1.0",
-    },
+  const csv = await fetchText(SNB_MONTHLY_CSV, {
+    headers: { "Accept": "text/csv,text/plain,*/*" },
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — SNB CSV`);
-  }
-
-  const csv = await response.text();
   _ratesMapCache = parseSnbCsv(csv);
   _ratesMapCachedAt = now;
   return _ratesMapCache;
@@ -239,15 +228,8 @@ async function handleGetExchangeRate(currency: string): Promise<string> {
 
   const entries = ratesMap.get(info.seriesId);
   if (!entries || entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No exchange rate data available",
-        currency: currency.toUpperCase(),
-        hint: "The SNB may not publish rates for this currency for recent periods.",
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -298,14 +280,8 @@ async function handleGetExchangeRateHistory(
   let entries = ratesMap.get(info.seriesId) ?? [];
 
   if (entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No historical data available",
-        currency: currency.toUpperCase(),
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -325,10 +301,13 @@ async function handleGetExchangeRateHistory(
   if (entries.length === 0) {
     return JSON.stringify(
       {
-        error: "No data in the specified date range",
-        currency: currency.toUpperCase(),
+        currency: info.code,
+        currencyName: info.name,
         from: from ?? null,
         to: to ?? null,
+        count: 0,
+        history: [],
+        note: "No monthly averages in that range. Dates are YYYY-MM.",
         source: "https://data.snb.ch",
       },
       null,
@@ -367,68 +346,6 @@ async function handleGetExchangeRateHistory(
   );
 }
 
-// ── Tool registration ────────────────────────────────────────────────────────
-
-export function registerSnbTools(server: McpServer): void {
-  // ── list_currencies ───────────────────────────────────────────────────────
-
-  server.tool(
-    "list_currencies",
-    "List all currencies available from the Swiss National Bank (SNB) for CHF exchange rate data. Returns currency codes, names, and regions.",
-    {},
-    async () => {
-      const result = await handleListCurrencies();
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate ─────────────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate",
-    "Get the current CHF exchange rate for a currency from the Swiss National Bank (SNB). Returns the latest monthly average rate and currency details.",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 currency code (e.g. 'EUR', 'USD', 'GBP', 'JPY'). Use list_currencies to see all available codes."
-        ),
-    },
-    async ({ currency }) => {
-      const result = await handleGetExchangeRate(currency);
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate_history ─────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate_history",
-    "Get historical CHF exchange rates for a currency from the Swiss National Bank (SNB). Returns monthly average rates with optional date filtering. Without date range, returns the most recent 90 months.",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 currency code (e.g. 'EUR', 'USD', 'GBP'). Use list_currencies to see all available codes."
-        ),
-      from: z
-        .string()
-        .optional()
-        .describe(
-          "Start date in YYYY-MM format (e.g. '2020-01'). Optional — defaults to 90 months ago if not provided."
-        ),
-      to: z
-        .string()
-        .optional()
-        .describe("End date in YYYY-MM format (e.g. '2026-02'). Optional — defaults to latest available."),
-    },
-    async ({ currency, from, to }) => {
-      const result = await handleGetExchangeRateHistory(currency, from, to);
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-}
-
 // ── Named exports for testing ─────────────────────────────────────────────────
 
 export {
@@ -445,20 +362,20 @@ export const snbTools = [
   {
     name: "list_currencies",
     description:
-      "List all currencies available from the Swiss National Bank (SNB) for CHF exchange rate data. Returns currency codes, names, and regions.",
+      "List currencies with SNB CHF exchange rates",
     inputSchema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_exchange_rate",
     description:
-      "Get the current CHF exchange rate for a currency from the Swiss National Bank (SNB). Returns the latest monthly average rate and currency details.",
+      "Latest SNB monthly-average CHF exchange rate for a currency",
     inputSchema: {
       type: "object" as const,
       required: ["currency"],
       properties: {
         currency: {
           type: "string",
-          description: "ISO 4217 currency code (e.g. 'EUR', 'USD', 'GBP', 'JPY'). Use list_currencies to see all available codes.",
+          description: "ISO 4217 code, e.g. EUR",
         },
       },
     },
@@ -466,22 +383,22 @@ export const snbTools = [
   {
     name: "get_exchange_rate_history",
     description:
-      "Get historical CHF exchange rates for a currency from the Swiss National Bank (SNB). Returns monthly average rates with optional date filtering. Without date range, returns the most recent 90 months.",
+      "Historical SNB monthly-average CHF exchange rates (default: last 90 months)",
     inputSchema: {
       type: "object" as const,
       required: ["currency"],
       properties: {
         currency: {
           type: "string",
-          description: "ISO 4217 currency code (e.g. 'EUR', 'USD', 'GBP'). Use list_currencies to see all available codes.",
+          description: "ISO 4217 code, e.g. EUR",
         },
         from: {
           type: "string",
-          description: "Start date in YYYY-MM format (e.g. '2020-01'). Optional.",
+          description: "YYYY-MM",
         },
         to: {
           type: "string",
-          description: "End date in YYYY-MM format (e.g. '2026-02'). Optional.",
+          description: "YYYY-MM",
         },
       },
     },

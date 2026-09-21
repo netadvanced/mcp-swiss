@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `mcp-swiss` are documented here.
+All notable changes to `mcp-swiss-ng` (and, before the fork, `mcp-swiss`) are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
@@ -8,6 +8,111 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ---
 
 ## [Unreleased]
+
+## [0.9.0] - 2026-09-20
+
+First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss), rebased on upstream `develop` (v0.8.0: pollen module, snow fixes, dependency updates through 2026-09-14).
+
+### Added
+
+**Streamable HTTP transport** (upstream #64) — `--http` / `MCP_TRANSPORT=http`
+- `POST/GET/DELETE /mcp` with per-session servers, `GET /health`, 30-min idle session expiry
+- Optional bearer auth (`MCP_AUTH_TOKEN`), Host allow-list / DNS-rebinding protection (`MCP_ALLOWED_HOSTS`, on by default for loopback binds), CORS (`MCP_CORS_ORIGIN`)
+- `docker-compose.example.yml`; container exposes port 3000, runs as non-root
+
+**Discovery mode** (upstream #106) — `--discovery` / `MCP_SWISS_DISCOVERY=1`
+- Starts with `swiss_discover` (module catalog / load modules, emits `tools/list_changed`) and `swiss_call` (fallback for clients that don't refresh tool lists)
+
+**Tool annotations** — every tool is marked `readOnlyHint`, `idempotentHint`, `openWorldHint`, not destructive
+
+**GWR module** (3 tools) — Federal Register of Buildings and Dwellings (BFS), via [api3.geo.admin.ch](https://api3.geo.admin.ch) layer `ch.bfs.gebaeude_wohnungs_register` (closes #142)
+- `search_buildings` — find buildings by address → EGID, address, coordinates, category, class, construction year, floors, dwellings
+- `get_building` — full decoded record by EGID: category/class/status, construction year/period, floors, areas, heating & hot-water systems, parcel/EGRID, entrances and dwellings (EWID, floor, rooms, area)
+- `buildings_near` — buildings around a WGS84 point within a small radius, closest first
+- GWR code lists (GKAT, GKLAS, GSTAT, GBAUP, GENH/GENW, GWAERZH/GWAERZW, WSTAT, WSTWK) decoded to English labels
+- Added to the `business` preset
+
+### Changed
+- Package renamed `mcp-swiss-ng` (bin `mcp-swiss-ng`); not on npm yet — install with `npx -y github:netadvanced/mcp-swiss-ng` or `ghcr.io/netadvanced/mcp-swiss-ng`
+- Node.js 22+ required (Node 20 is EOL); CI on 22/24, Docker `node:24-alpine`
+- All outbound requests share one client: `mcp-swiss-ng/<version>` User-Agent and a 30 s timeout (`MCP_SWISS_TIMEOUT_MS`; 120 s for the slow BFS PxWeb API); several modules previously had no timeout
+- Server reports the real package version (was hard-coded `0.5.8`)
+- Tool schemas trimmed 33% (≈9.7k → 6.5k tokens per conversation; upstream #107). `enum`/`default` used where the handler enforces them. Transport `x`/`y` were documented the wrong way round (x is latitude). `npm run docs:tools` regenerates `docs/tools.schema.json` and the manifest tool list; CI checks they are in sync
+- `outdoor` preset includes `pollen`; `--list-modules` shows module descriptions
+- `src/index.ts` split into `registry`, `config`, `server`, `http-server`; importing modules no longer starts a server
+- vitest 5, eslint 10.11, GitHub Actions v7; TypeScript stays on 6.x until typescript-eslint supports 7
+
+### Security
+- HTTP mode refuses to start on a non-loopback address unless both `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are set. Without them the SDK's DNS-rebinding protection is off and the server is an open proxy onto the upstream APIs
+- Concurrent sessions are capped (`MCP_MAX_SESSIONS`, default 64) and answered with `429` + `Retry-After` beyond it. Previously each `initialize` allocated a server with no limit (~294 MB for 3000 sessions, held for the 30-minute idle window)
+- Request bodies over 1 MB return `413`; other internal errors return a generic `500` instead of the exception message
+- `/health` reports the session count only on a loopback bind
+- Search terms are escaped before going into Basel-Stadt ODSQL filters (`voting`); a quote used to break the query or widen the filter
+- SECURITY.md described a stdio-only tool that opens no port
+
+### Fixed
+- A rate-limited or temporarily unavailable upstream (429, 502, 503, 504) is retried once, honouring `Retry-After` up to 10 s. BFS PxWeb returns 429 under load, which used to surface as a failed tool call
+- Argument validation rejected values the handlers had always accepted: a station id sent as `2135` rather than `"2135"`, and enum values in the wrong case (`type: "IMIS"`, `canton: "vs"`). Both work again, and the handler receives the canonical spelling
+- A session slot stayed reserved if building the server threw, so repeated failures could fill the cap permanently while `/health` reported no sessions
+- `npm test` now fails any test that reaches the network. One pollen test was quietly fetching live data and passing on it
+- `get_avalanche_bulletin` reported an unknown region as a successful result with an `error` key, so an agent read the failure as data
+- Recycling used the host timezone for "today" and for the default month, which is wrong for a server outside Switzerland
+- `get_traffic_nearby` accepted any radius; it now clamps to 50 km as the hiking equivalent does
+- `parliament` was the last module reading a response body outside the retrying helper, so a dropped connection was not retried there
+- The pollen station schema froze an enum of 15 codes, so argument validation rejected a newly published MeteoSwiss station before the live station list could accept it
+- Tool arguments are now validated against each tool's schema before a handler runs. MCP does not coerce, so a `year` sent as text reached an upstream query filter verbatim and a non-numeric `radius` became `NaN` in a URL; numeric and boolean strings are coerced, anything else is rejected with a clear message
+- `get_weather_history` and `get_water_history` returned every raw reading, so a 32-day range was ~3.2 MB. They now pick the finest resolution that fits the response budget (raw, hourly or daily min/max/mean) and say what they did; `resolution` forces a specific one
+- The connection retry only covered failures before the response headers. A socket dropped part-way through the body — which is what transport.opendata.ch does under its rate limit — failed at read time and was never retried. The retry now wraps the body read, and a test drops a real connection mid-body to prove it
+- A session holding an event stream was exempt from the idle sweep with no upper bound, so one client could hold a slot (and with a small cap, the server) indefinitely. Sessions now have a maximum lifetime (8 h, `sessionMaxLifetimeMs`)
+- HTTP session cap held only for sequential handshakes: concurrent `initialize` requests could all pass the check and overshoot it, and a handshake that failed after the server was built left an MCP server nothing would ever close. Slots are now reserved before the server is created and released when the handshake does not complete
+- Bearer comparison returned early on a length mismatch, leaking the token length; both sides are hashed first
+- `MCP_MAX_SESSIONS` silently fell back to 64 when set to `0` or junk; it now refuses to start
+- Failed tool calls were reported as successful results: handlers returned `{"error": "..."}` as data, so the MCP client saw no `isError` flag and an assistant would relay "query parameter is required" as if it were an answer. Validation and lookup failures now throw (voting, energy, earthquakes, snb, dams, post); genuinely empty results keep returning `count: 0`.
+- `get_dams_by_canton` and `list_postcodes_in_canton` filtered by the canton's bounding box, so they returned places from neighbouring cantons under the wrong canton label. Lucerne, for instance, listed six dams, none of them in LU. Both now use a real canton attribute: dams are checked against the swissboundaries3d canton polygons, postcodes come from the canton column of the official locality register (AMTOVZ). Postcodes that only reach into a canton are listed separately with their main canton and address share, and dams on the German border are flagged.
+- `search_dams` always reported `canton: null`: it asked the layer for results without geometry, and the canton lookup used LV03 coordinates against an LV95 service. Both fixed; `get_dam_details` was affected by the second one too.
+- The avalanche module claimed the SLF JSON bulletin needed an API key and returned only PDF and map links, next to an invented list of 22 warning regions. The public CAAMLv6 feed at `aws.slf.ch` needs no key: `get_avalanche_bulletin` now returns the real danger level, avalanche problems with aspect and elevation, validity and advice for a region or coordinate (with a plain "no bulletin in force" answer out of season), and `list_avalanche_regions` lists SLF's actual 135 EAWS micro-regions.
+- Parliament responses over the 48K budget were cut mid-JSON, so the client could not parse them at all. They now drop whole list entries and report how many under `omitted`.
+- `get_parliament_votes` read field names OpenParlData does not use, so every tally came back empty. Wired to the real `title_de`/`meaning_of_*`/`results_*` fields.
+- `is_holiday_today` used the UTC date, so between midnight and 02:00 Swiss time it asked about yesterday — on 1 August it answered "not a holiday". It and the avalanche bulletin date now use the Europe/Zurich calendar date.
+- `get_nearby_stations` advertised `limit` and `distance` but sent neither; transport.opendata.ch ignores both anyway, so they are applied to the station list it returns.
+- `get_population` rejected "Zürich" and "Genève" as unknown cantons. Canton names are now matched without accents or case, in German, French, Italian and English.
+- `get_population` rejected year 2025 against a hard-coded list. The available years now come from the STATPOP cube's own metadata, and the default is the latest published vintage.
+- Pollen station names came out as "Gen�ve" / "Z�rich": MeteoSwiss serves ISO-8859-1 under a bare `text/csv`, which was being decoded as UTF-8.
+- `get_pollen_current` and `get_pollen_daily` checked the station against a frozen list of 16 codes, one of which (PJU) MeteoSwiss has retired. They now check against the published station list, cached for a day.
+- `get_property_price_index` served a hand-written table as official BFS values. The numbers rose every single quarter, houses and apartments sat at a near-constant offset from the total, and the series claimed to start in 2009. The real IMPI starts in 2017-Q1. The tool now fetches the published series (order number `ds-x-05.06.03.01.02` on the BFS asset API), caches it in-process, and reports the "data as of" date and the file it came from.
+- Removed the unreferenced `registerNewsTools`, `registerSnbTools` and `registerVotingTools`, which dragged `McpServer` and the undeclared `zod` dependency into every module load.
+- Earthquake lookups went over plain HTTP. They now use the SED EIDA node over HTTPS (`https://eida.ethz.ch/fdsnws/event/1/`) — same catalog, and `arclink.ethz.ch` has nothing listening on 443.
+- `swiss_discover` and `swiss_call` were annotated `readOnlyHint: true` like the data tools, so a client that auto-approves read-only calls would auto-approve a tool that rewrites the session's tool list. Both meta-tools now carry their own annotations.
+- The MCP registry workflow pulled `mcp-publisher` from `releases/latest` with no checksum and installed it with `sudo` in a job holding `id-token: write`. It now pins v1.8.1, verifies the published SHA256 and installs into `$RUNNER_TEMP`.
+- The CI `npm audit` step had `continue-on-error: true`, so it could never fail the build. It now fails on high and critical advisories.
+- `get_dams_by_canton` built its candidate list from the geo.admin `find` endpoint, which stops at 201 rows. The layer holds 225, so 24 dams from "Le Chalet" onwards were never returned — Zeuzier, Vieux Emosson, Zervreila, Verbois, Wettingen and the rest. The list is now paged off the `identify` endpoint, and a `limit` (up to 100) makes cantons like VS (54 dams) and GR (45) fully reachable.
+- `get_rent_index` hard-coded the CPI row count at 515 to compute "the latest N months", so the window drifted every time the source gained a month, and the error text advertised a fixed "1982–2025". Both the window and the reported coverage now come from the response, and a year lookup uses the store's own filter instead of a computed offset.
+- The NABEL station list was missing Jungfraujoch (JUN) and Beromünster (BRM). It now holds all 16 stations and merges in any code the geo.admin.ch layer gains later, so `get_air_quality` no longer rejects a real station.
+- `get_recent_earthquakes` sent no bounding box and no cap on `limit`: a year at magnitude 0 is ~2200 events and half a megabyte. It now asks for the Swiss box, caps the count at 100 and says when more events match.
+- The ZEFIX reference lists and the postcode register were cached for the life of the process and never refreshed, and concurrent first calls each started their own download. Both now expire (1 h / 24 h) and share one in-flight request.
+- The postcode register's ZIP was inflated with no output limit. Decompression is capped at 32 MB and fails with a clear message.
+- Dependabot auto-merged semver-minor bumps of `@modelcontextprotocol/sdk`, the one runtime dependency. Its bumps now get their own PR and a reviewer; dev dependencies and actions still auto-merge.
+- Removed `mcp-manifest.json`, a stale copy of `server.json` still claiming v0.1.4 that nothing read, plus the upstream-only `test_suite.js`, `run_tests.sh` and `scripts/qa-per-tool.sh`, which pointed at `/home/vikram` and tools that no longer exist.
+- The bug-report template offered a 22-entry tool dropdown from v0.1.0 and Node 18/20. Tool and module are free text now, and the Node list matches what we support.
+- `get_weather_history` and `get_water_history` sent `startdt`/`enddt`, which api.existenz.ch ignores: every call returned the last 24 hours labelled as the requested period. They now send `startdate`/`enddate`, and say so when a range falls outside the ~32-day archive
+- `get_traffic_nearby` and `get_trail_closures_nearby` passed the radius in metres as a pixel tolerance on a 1x1 px map, so a few kilometres matched the whole country (1 km around Lausanne returned 201 stations from 24 cantons). Both now query an LV95 box, filter on real distance and report `distance_m`, nearest first
+- `reverse_geocode` always returned zero results: swisstopo's SearchServer has no reverse lookup. It now resolves the nearest address from the building register plus the containing municipality, canton and BFS number
+- ZEFIX `search_companies` sent the canton as `cantonAbbreviation` and the legal form as `legalFormCode`; the search endpoint knows neither field and quietly returned unfiltered results. It now resolves the canton to its registry-office ids (`registryOffices`) and the legal form to its numeric id (`legalForms`), and rejects values it cannot resolve
+- `list_legal_forms` returned invented `0101`-style codes that `search_companies` never accepted. It now returns the live ZEFIX list (`legalForm.json`) with the ids the search really filters on — `3` = AG, `4` = GmbH
+- `search_companies_by_address` sent the address as the company name, so it was a name search wearing an address label. ZEFIX has no street-address search at all, so the tool is now `search_companies_by_locality`: it resolves a commune or town (accent-insensitive, alternate names included) to legal-seat ids. A street address is rejected with an error that explains why
+- `get_company` interpolated `ehraid` straight into the URL path; it is now checked for digits only
+- `get_company` returned the whole SOGC journal (60 KB for Migros alone); capped at the 10 newest entries plus a `shabPubTotal` count. Search results are slimmed and carry the canton and legal-form label
+- Sessions with an open event stream are no longer closed by the idle sweeper
+- `search_places` advertised `type: "featuresearch"`, which always returned HTTP 400 because the tool sends no layer; the parameter is gone
+- User-Agent and the existenz.ch `app` parameter still said `mcp-swiss`
+- VS Code one-click install buttons still installed upstream's npm package
+- `energy` worked out the current year once at startup, so a long-running server kept using last year's tariffs
+- The release workflow ran the develop version bump in the same job as the release, so a bump failure skipped the Docker image and the .mcpb bundle
+- Build broken on upstream `develop` since the TypeScript 6 bump (`types: ["node"]` missing from tsconfig)
+- `get_snow_measurements` for study plots returns an empty result with an explanation off-season instead of an HTTP 404 error
+- `energy` tools defaulted to tariff year 2026 forever; now the current year
+- Pollen integration test assumed 16 stations (MeteoSwiss now runs 15)
+- 9 npm audit findings (0 remaining)
 
 ---
 
@@ -85,5 +190,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Geodata identify: corrected path to `/all/MapServer/identify` with WGS84 coordinates directly
 - ESLint config: renamed to `.mjs` extension (ESM import requires explicit module type)
 
-[Unreleased]: https://github.com/vikramgorla/mcp-swiss/compare/v0.1.0...HEAD
+Versions 0.2.0 to 0.8.0 were released upstream; their notes live in
+[vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss/releases).
+
+[Unreleased]: https://github.com/netadvanced/mcp-swiss-ng/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/netadvanced/mcp-swiss-ng/releases/tag/v0.9.0
 [0.1.0]: https://github.com/vikramgorla/mcp-swiss/releases/tag/v0.1.0

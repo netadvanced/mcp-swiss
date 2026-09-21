@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ask a question (GitHub Discussions)
-    url: https://github.com/vikramgorla/mcp-swiss/discussions
+    url: https://github.com/netadvanced/mcp-swiss-ng/discussions
     about: General questions, usage help, and ideas — use Discussions, not Issues.
   - name: Swiss open data portal
     url: https://opendata.swiss
