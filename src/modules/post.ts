@@ -98,24 +98,24 @@ const REGISTER_TTL_MS = 24 * 60 * 60 * 1000;
 // a hostile or corrupt archive from inflating into the heap unbounded.
 const MAX_CSV_BYTES = 32 * 1024 * 1024;
 
-function tooLarge(): Error {
+function tooLarge(limit: number): Error {
   return new Error(
-    `PLZ register CSV exceeds the ${MAX_CSV_BYTES / (1024 * 1024)} MB decompression limit — refusing to load it`
+    `PLZ register CSV exceeds the ${limit / (1024 * 1024)} MB decompression limit — refusing to load it`
   );
 }
 
 /** zlib reports the cap as ERR_BUFFER_TOO_LARGE; say what actually happened. */
-function inflate(data: Buffer): Buffer {
+function inflate(data: Buffer, limit: number): Buffer {
   try {
-    return inflateRawSync(data, { maxOutputLength: MAX_CSV_BYTES });
+    return inflateRawSync(data, { maxOutputLength: limit });
   } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === "ERR_BUFFER_TOO_LARGE") throw tooLarge();
+    if ((err as NodeJS.ErrnoException)?.code === "ERR_BUFFER_TOO_LARGE") throw tooLarge(limit);
     throw err;
   }
 }
 
 /** Read the first .csv entry out of a ZIP archive (stored or deflated). */
-function readCsvFromZip(zip: Buffer): string {
+export function readCsvFromZip(zip: Buffer, limit: number = MAX_CSV_BYTES): string {
   let eocd = -1;
   for (let i = zip.length - 22; i >= 0 && i > zip.length - 22 - 65536; i--) {
     if (zip.readUInt32LE(i) === 0x06054b50) {
@@ -141,8 +141,8 @@ function readCsvFromZip(zip: Buffer): string {
       const start =
         localOffset + 30 + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
       const data = zip.subarray(start, start + compressedSize);
-      const raw = method === 0 ? data : inflate(data);
-      if (raw.length > MAX_CSV_BYTES) throw tooLarge();
+      const raw = method === 0 ? data : inflate(data, limit);
+      if (raw.length > limit) throw tooLarge(limit);
       return raw.toString("utf8").replace(/^\uFEFF/, "");
     }
     p += 46 + nameLen + extraLen + commentLen;

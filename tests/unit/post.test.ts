@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handlePost, postTools, clearPostCache } from "../../src/modules/post.js";
+import { handlePost, postTools, clearPostCache, readCsvFromZip } from "../../src/modules/post.js";
 import {
   mockPlzFindResponse,
   mockSearchZipcodeResponse,
@@ -9,7 +9,6 @@ import {
   mockPlzRegisterZip,
   mockPlzRegisterCsv,
   buildRegisterZip,
-  oversizedRegisterZip,
 } from "../fixtures/post.js";
 
 // ── Mock helpers ─────────────────────────────────────────────────────────────
@@ -514,12 +513,12 @@ describe("list_postcodes_in_canton", () => {
     ).rejects.toThrow("unexpected header");
   });
 
-  it("refuses an archive that inflates past the size cap", async () => {
-    registerZip = oversizedRegisterZip();
-    mockFetch(mockEmptyResults);
-    await expect(
-      handlePost("list_postcodes_in_canton", { canton: "ZH" })
-    ).rejects.toThrow("32 MB decompression limit");
+  it("refuses an archive that inflates past the size cap", () => {
+    // A real zip bomb would take seconds to build; the guard is the same code
+    // path with a small cap, so drive it directly.
+    const zip = buildRegisterZip("A".repeat(64 * 1024));
+    expect(() => readCsvFromZip(zip, 1024)).toThrow("decompression limit");
+    expect(() => readCsvFromZip(zip)).not.toThrow();
   });
 
   it("two concurrent calls download the register once", async () => {
