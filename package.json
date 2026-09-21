@@ -1,7 +1,7 @@
 {
   "name": "mcp-swiss-ng",
   "private": true,
-  "version": "0.9.0",
+  "version": "0.9.1-dev",
   "description": "Swiss open data MCP server — 82 tools across 23 modules, stdio or HTTP. Zero API keys.",
   "main": "dist/index.js",
   "bin": {
