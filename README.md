@@ -31,7 +31,7 @@
 🏢 Companies    — ZEFIX federal registry, all 700K+ Swiss companies
 🎄 Holidays     — Swiss public & school holidays by canton
 🏛️ Parliament   — Bills, votes, members, speeches, cantonal affairs (OpenParlData.ch)
-🏔️ Avalanche    — SLF danger bulletins and warning regions
+🏔️ Avalanche    — SLF bulletin: danger levels, problems, warning regions
 💨 Air Quality  — NABEL stations, Swiss legal limits (LRV)
 📮 Swiss Post   — Postcode lookup and parcel tracking
 ⚡ Energy       — Electricity tariffs by municipality (ElCom)
@@ -344,7 +344,7 @@ docker run -p 3000:3000 -e MCP_TRANSPORT=http -e HOST=0.0.0.0 \
 | Max concurrent sessions | — | `MCP_MAX_SESSIONS` | `64` |
 | Upstream API timeout (ms) | — | `MCP_SWISS_TIMEOUT_MS` | `30000` |
 
-Each session gets its own server instance. Idle sessions are dropped after 30 minutes (a session with an open event stream is kept), further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
+Each session gets its own server instance. Idle sessions are dropped after 30 minutes and every session after 8 hours, so an open event stream cannot hold a slot indefinitely. Further sessions get `429` once the cap is reached, and request bodies over 1 MB get `413`.
 
 **The server refuses to start on a non-loopback address unless `MCP_AUTH_TOKEN` and `MCP_ALLOWED_HOSTS` are both set.** The data is public, but an open server is an open proxy onto the upstream APIs, on your IP and their rate limits. Behind a reverse proxy, put the public hostname (with port, if it isn't the default) in `MCP_ALLOWED_HOSTS`.
 
@@ -390,7 +390,7 @@ Once connected, try asking your AI:
 | *"Plan my Saturday: train to Interlaken, check weather"* | Multiple tools chained |
 | *"Is next Monday a holiday in Zürich?"* | `get_public_holidays` |
 | *"What did the Swiss parliament vote on recently?"* | `search_parliament_business` |
-| *"What's the avalanche danger level in the Bernese Alps?"* | `get_avalanche_bulletin` |
+| *"What's the avalanche danger above Davos today?"* | `get_avalanche_bulletin` |
 | *"What's the postcode for Zermatt?"* | `search_postcode` |
 | *"Track my Swiss Post parcel 99.12.345678.12345678"* | `track_parcel` |
 | *"How much does electricity cost in Zürich vs Basel?"* | `search_municipality_energy` + `compare_electricity_tariffs` |
@@ -471,8 +471,8 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_avalanche_bulletin` | Current avalanche bulletin with danger levels and PDF links |
-| `list_avalanche_regions` | All 22 Swiss avalanche warning regions |
+| `get_avalanche_bulletin` | Danger level, avalanche problems and advice for a region or coordinate |
+| `list_avalanche_regions` | The 135 SLF/EAWS warning regions with id, name and canton |
 
 ### 💨 Air Quality (2 tools)
 
@@ -542,7 +542,7 @@ Once connected, try asking your AI:
 | Tool | Description |
 |------|-------------|
 | `search_dams` | Search Swiss federal dams by name or keyword |
-| `get_dams_by_canton` | List all federal dams in a canton |
+| `get_dams_by_canton` | List the federally supervised dams in a canton |
 | `get_dam_details` | Detailed info on a specific dam (height, volume, purpose) |
 
 ### 🥾 Hiking / Trail Closures (2 tools)
@@ -558,7 +558,7 @@ Once connected, try asking your AI:
 |------|-------------|
 | `get_property_price_index` | BFS residential property price index (IMPI), quarterly |
 | `search_real_estate_data` | Search BFS real estate datasets on opendata.swiss |
-| `get_rent_index` | Swiss rent index and housing cost data from BFS |
+| `get_rent_index` | Swiss consumer price index (incl. rents), monthly |
 
 ### 🚗 Traffic / ASTRA (3 tools)
 
@@ -614,7 +614,7 @@ All official Swiss open data — no API keys required:
 | [zefix.admin.ch](https://www.zefix.admin.ch) | Federal company registry | [Swagger](https://www.zefix.admin.ch/ZefixREST/swagger-ui.html) |
 | [openholidaysapi.org](https://openholidaysapi.org) | Swiss public & school holidays | [API docs](https://openholidaysapi.org/swagger) |
 | [OpenParlData.ch](https://openparldata.ch) | Swiss Parliament data — federal & cantonal (CC BY 4.0) | [API docs](https://api.openparldata.ch/documentation) |
-| [whiterisk.ch](https://whiterisk.ch) / [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletins | [SLF](https://www.slf.ch/en/avalanche-bulletin-and-snow-situation.html) |
+| [aws.slf.ch](https://aws.slf.ch) | SLF/WSL avalanche bulletin, EAWS CAAMLv6 (CC BY 4.0) | [API docs](https://aws.slf.ch/api/bulletin/caaml) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — BAFU/NABEL | Swiss air quality monitoring stations | [BAFU NABEL](https://www.bafu.admin.ch/bafu/en/home/topics/air/state/data/nabel.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss postcodes (Amtliches Ortschaftenverzeichnis) | [geo.admin.ch](https://api3.geo.admin.ch/api/doc.html) |
 | [strompreis.elcom.admin.ch](https://strompreis.elcom.admin.ch) | ElCom electricity tariffs by municipality | [ElCom](https://www.elcom.admin.ch/elcom/en/home.html) |
@@ -627,7 +627,7 @@ All official Swiss open data — no API keys required:
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss trail closures and hiking alerts | [swisstopo](https://www.swisstopo.admin.ch) |
 | [pxweb.bfs.admin.ch](https://www.pxweb.bfs.admin.ch) | BFS property prices + rent index | [BFS housing](https://www.bfs.admin.ch/bfs/en/home/statistics/construction-housing.html) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — ASTRA | Traffic counting stations + daily volumes | [ASTRA](https://www.astra.admin.ch) |
-| [arclink.ethz.ch](http://arclink.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](http://www.seismo.ethz.ch) |
+| [eida.ethz.ch](https://eida.ethz.ch) | Swiss Seismological Service earthquakes (SED/ETH) | [SED](https://www.seismo.ethz.ch) |
 | [measurement-api.slf.ch](https://measurement-api.slf.ch/public/api) | SLF snow depth + measurements (IMIS + study plots, CC BY 4.0) | [SLF](https://www.slf.ch) |
 | [data.geo.admin.ch](https://data.geo.admin.ch/ch.meteoschweiz.ogd-pollen/) | MeteoSwiss pollen concentrations (16 automatic stations, CC BY) | [MeteoSwiss](https://www.meteoswiss.admin.ch) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — BFS | Federal Register of Buildings and Dwellings (GWR/RegBL), updated weekly | [BFS GWR](https://www.housing-stat.ch) |

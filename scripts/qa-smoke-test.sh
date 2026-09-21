@@ -29,7 +29,7 @@ run_test() {
 # Build first
 npm run build
 
-# ── Original 11 modules ──────────────────────────────────────────────────────
+# ── Modules ──────────────────────────────────────────────────────────────────
 run_test "Transport"    "Next train from Bern to Zürich. Use swiss MCP tools only."
 run_test "Weather"      "Current weather in Bern. Use swiss MCP tools only."
 run_test "Geodata"      "Geocode Bundesplatz 3 Bern. Use swiss MCP tools only."
@@ -41,8 +41,6 @@ run_test "Air Quality"  "Air quality stations list. Use swiss MCP tools only."
 run_test "Post"         "What is the postcode for Zermatt? Use swiss MCP tools only."
 run_test "Energy"       "Electricity cost in Bern. Use swiss MCP tools only."
 run_test "Statistics"   "Population of Zürich canton. Use swiss MCP tools only."
-
-# ── 9 new modules ────────────────────────────────────────────────────────────
 run_test "SNB Exchange Rates"      "What is the current CHF to EUR exchange rate? Use swiss MCP tools only."
 run_test "ASTRA Traffic"           "Traffic count at Gotthard. Use swiss MCP tools only."
 run_test "Recycling"               "Next waste collection for ZIP 8001. Use swiss MCP tools only."
@@ -52,8 +50,11 @@ run_test "Dams & Reservoirs"       "Search for Grande Dixence dam. Use swiss MCP
 run_test "Hiking Trail Closures"   "Any hiking trail closures? Use swiss MCP tools only."
 run_test "Real Estate"             "Swiss property price index trend. Use swiss MCP tools only."
 run_test "Earthquakes"             "Recent earthquakes in Switzerland. Use swiss MCP tools only."
+run_test "Snow"                    "Snow depth at Davos. Use swiss MCP tools only."
+run_test "Pollen"                  "Current pollen levels in Bern. Use swiss MCP tools only."
+run_test "GWR Buildings"           "Buildings at Bundesplatz 3, Bern. Use swiss MCP tools only."
 
-# ── Multi-tool chain test (updated) ──────────────────────────────────────────
+# ── Multi-tool chain test ────────────────────────────────────────────────────
 run_test "Multi-tool" "Plan a trip from Zürich to Zermatt: train schedule, weather, exchange rate CHF/EUR, any trail closures near Zermatt. Use swiss MCP tools."
 
 # ── Summary ──────────────────────────────────────────────────────────────────

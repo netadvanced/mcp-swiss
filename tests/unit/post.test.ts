@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handlePost, postTools, clearPostCache } from "../../src/modules/post.js";
+import { handlePost, postTools, clearPostCache, readCsvFromZip } from "../../src/modules/post.js";
 import {
   mockPlzFindResponse,
   mockSearchZipcodeResponse,
@@ -152,13 +152,11 @@ describe("lookup_postcode", () => {
     expect(result.source).toContain("swisstopo");
   });
 
-  it("returns found:false for unknown PLZ", async () => {
+  it("rejects for an unknown PLZ", async () => {
     mockFetchSequence(mockEmptyResults);
-    const result = JSON.parse(
-      await handlePost("lookup_postcode", { postcode: "9999" })
-    );
-    expect(result.found).toBe(false);
-    expect(result.postcode).toBe("9999");
+    await expect(
+      handlePost("lookup_postcode", { postcode: "9999" })
+    ).rejects.toThrow("No Swiss postcode 9999");
   });
 
   it("throws for non-4-digit postcode", async () => {
@@ -513,6 +511,32 @@ describe("list_postcodes_in_canton", () => {
     await expect(
       handlePost("list_postcodes_in_canton", { canton: "ZH" })
     ).rejects.toThrow("unexpected header");
+  });
+
+  it("refuses an archive that inflates past the size cap", () => {
+    // A real zip bomb would take seconds to build; the guard is the same code
+    // path with a small cap, so drive it directly.
+    const zip = buildRegisterZip("A".repeat(64 * 1024));
+    expect(() => readCsvFromZip(zip, 1024)).toThrow("decompression limit");
+    expect(() => readCsvFromZip(zip)).not.toThrow();
+  });
+
+  it("two concurrent calls download the register once", async () => {
+    const fetchMock = mockFetch(mockEmptyResults);
+    await Promise.all([
+      handlePost("list_postcodes_in_canton", { canton: "ZH" }),
+      handlePost("list_postcodes_in_canton", { canton: "BE" }),
+    ]);
+    const downloads = fetchMock.mock.calls.filter((c) => String(c[0]).includes("data.geo.admin.ch"));
+    expect(downloads).toHaveLength(1);
+  });
+
+  it("a later call reuses the cached register", async () => {
+    const fetchMock = mockFetch(mockEmptyResults);
+    await handlePost("list_postcodes_in_canton", { canton: "ZH" });
+    await handlePost("list_postcodes_in_canton", { canton: "BE" });
+    const downloads = fetchMock.mock.calls.filter((c) => String(c[0]).includes("data.geo.admin.ch"));
+    expect(downloads).toHaveLength(1);
   });
 });
 

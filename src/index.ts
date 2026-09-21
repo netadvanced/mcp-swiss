@@ -12,6 +12,17 @@ import { resolveModules } from "./registry.js";
 import { createServer, SERVER_NAME } from "./server.js";
 import { VERSION } from "./utils/http.js";
 
+/** Reads a positive integer from the environment, or exits with a clear message. */
+function parsePositiveInt(value: string | undefined, name: string): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    process.stderr.write(`${name} must be a positive integer, got: ${value}\n`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
 async function main(): Promise<void> {
   const config = parseArgs();
 
@@ -55,7 +66,7 @@ async function main(): Promise<void> {
       authToken,
       allowedHosts,
       corsOrigin: env.MCP_CORS_ORIGIN || undefined,
-      maxSessions: Number(env.MCP_MAX_SESSIONS) > 0 ? Number(env.MCP_MAX_SESSIONS) : undefined,
+      maxSessions: parsePositiveInt(env.MCP_MAX_SESSIONS, "MCP_MAX_SESSIONS"),
       exposeSessionCount: isLoopbackBind(config.host),
       createMcpServer: () => createServer({ modules, discovery: config.discovery }),
     });

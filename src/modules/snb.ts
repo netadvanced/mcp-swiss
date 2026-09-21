@@ -5,9 +5,7 @@
 //   Monthly data: https://data.snb.ch/api/cube/devkum/data/csv/en
 //   Annual data:  https://data.snb.ch/api/cube/devkua/data/csv/en
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { fetchJSON, httpFetch } from "../utils/http.js";
+import { fetchJSON, fetchText } from "../utils/http.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -180,15 +178,9 @@ async function fetchRatesMap(): Promise<Map<string, RateEntry[]>> {
     return _ratesMapCache;
   }
 
-  const response = await httpFetch(SNB_MONTHLY_CSV, {
+  const csv = await fetchText(SNB_MONTHLY_CSV, {
     headers: { "Accept": "text/csv,text/plain,*/*" },
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText} — SNB CSV`);
-  }
-
-  const csv = await response.text();
   _ratesMapCache = parseSnbCsv(csv);
   _ratesMapCachedAt = now;
   return _ratesMapCache;
@@ -236,15 +228,8 @@ async function handleGetExchangeRate(currency: string): Promise<string> {
 
   const entries = ratesMap.get(info.seriesId);
   if (!entries || entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No exchange rate data available",
-        currency: currency.toUpperCase(),
-        hint: "The SNB may not publish rates for this currency for recent periods.",
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -295,14 +280,8 @@ async function handleGetExchangeRateHistory(
   let entries = ratesMap.get(info.seriesId) ?? [];
 
   if (entries.length === 0) {
-    return JSON.stringify(
-      {
-        error: "No historical data available",
-        currency: currency.toUpperCase(),
-        source: "https://data.snb.ch",
-      },
-      null,
-      2
+    throw new Error(
+      `The SNB publishes no rates for ${info.code}. Use list_currencies to see which currencies carry data.`
     );
   }
 
@@ -322,10 +301,13 @@ async function handleGetExchangeRateHistory(
   if (entries.length === 0) {
     return JSON.stringify(
       {
-        error: "No data in the specified date range",
-        currency: currency.toUpperCase(),
+        currency: info.code,
+        currencyName: info.name,
         from: from ?? null,
         to: to ?? null,
+        count: 0,
+        history: [],
+        note: "No monthly averages in that range. Dates are YYYY-MM.",
         source: "https://data.snb.ch",
       },
       null,
@@ -361,68 +343,6 @@ async function handleGetExchangeRateHistory(
     },
     null,
     2
-  );
-}
-
-// ── Tool registration ────────────────────────────────────────────────────────
-
-export function registerSnbTools(server: McpServer): void {
-  // ── list_currencies ───────────────────────────────────────────────────────
-
-  server.tool(
-    "list_currencies",
-    "List currencies with SNB CHF exchange rates",
-    {},
-    async () => {
-      const result = await handleListCurrencies();
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate ─────────────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate",
-    "Latest SNB monthly-average CHF exchange rate for a currency",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 code, e.g. EUR"
-        ),
-    },
-    async ({ currency }) => {
-      const result = await handleGetExchangeRate(currency);
-      return { content: [{ type: "text", text: result }] };
-    }
-  );
-
-  // ── get_exchange_rate_history ─────────────────────────────────────────────
-
-  server.tool(
-    "get_exchange_rate_history",
-    "Historical SNB monthly-average CHF exchange rates (default: last 90 months)",
-    {
-      currency: z
-        .string()
-        .describe(
-          "ISO 4217 code, e.g. EUR"
-        ),
-      from: z
-        .string()
-        .optional()
-        .describe(
-          "Start date in YYYY-MM format (e.g. '2020-01'). Optional — defaults to 90 months ago if not provided."
-        ),
-      to: z
-        .string()
-        .optional()
-        .describe("End date in YYYY-MM format (e.g. '2026-02'). Optional — defaults to latest available."),
-    },
-    async ({ currency, from, to }) => {
-      const result = await handleGetExchangeRateHistory(currency, from, to);
-      return { content: [{ type: "text", text: result }] };
-    }
   );
 }
 

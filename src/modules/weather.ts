@@ -82,6 +82,12 @@ export const weatherTools = [
         station: { type: "string", description: "Station code, e.g. BER" },
         start_date: { type: "string", description: "YYYY-MM-DD, within the last 32 days" },
         end_date: { type: "string", description: "YYYY-MM-DD" },
+        resolution: {
+          type: "string",
+          enum: ["auto", "raw", "hourly", "daily"],
+          description: "auto summarises long ranges to min/max/mean per period",
+          default: "auto",
+        },
       },
     },
   },
@@ -114,6 +120,12 @@ export const weatherTools = [
         station: { type: "string", description: "Hydro station ID" },
         start_date: { type: "string", description: "YYYY-MM-DD, within the last 32 days" },
         end_date: { type: "string", description: "YYYY-MM-DD" },
+        resolution: {
+          type: "string",
+          enum: ["auto", "raw", "hourly", "daily"],
+          description: "auto summarises long ranges to min/max/mean per period",
+          default: "auto",
+        },
       },
     },
   },
@@ -160,16 +172,106 @@ function compactHydroStations(payload: Record<string, StationEntry>): Record<str
 // ── Handler ─────────────────────────────────────────────────────────────────
 
 const HISTORY_WINDOW_DAYS = 32;
+// Stations report every 10 minutes across several parameters, so raw data runs
+// to megabytes over a month. `auto` keeps as much shape as fits the response
+// budget, stepping raw -> hourly -> daily until the payload is small enough.
+const MAX_RESPONSE_BYTES = 45_000;
+
+type Resolution = "auto" | "raw" | "hourly" | "daily";
+
+function historyResolution(value: unknown): Resolution {
+  return value === "raw" || value === "hourly" || value === "daily" ? value : "auto";
+}
 
 /** The upstream archive only holds ~32 days; older ranges come back empty. */
-function historyResult(station: unknown, records: unknown[], startDate: unknown): string {
-  const out: Record<string, unknown> = { station, count: records.length, data: records };
-  if (records.length === 0) {
-    out.note = `No readings. api.existenz.ch keeps only the last ${HISTORY_WINDOW_DAYS} days${
-      typeof startDate === "string" ? ` (requested from ${startDate})` : ""
-    }; for older data use the MeteoSwiss/BAFU open-data archives.`;
+interface Reading {
+  time: string | undefined;
+  param: string;
+  value: number;
+}
+
+interface Bucket {
+  /** YYYY-MM-DD for daily buckets, YYYY-MM-DDTHH for hourly ones. */
+  period: string;
+  param: string;
+  min: number;
+  max: number;
+  mean: number;
+  readings: number;
+}
+
+function summarise(records: Reading[], unit: "hourly" | "daily"): Bucket[] {
+  const width = unit === "daily" ? 10 : 13;
+  const groups = new Map<string, { period: string; param: string; values: number[] }>();
+
+  for (const r of records) {
+    if (!r.time || typeof r.value !== "number" || Number.isNaN(r.value)) continue;
+    const period = r.time.slice(0, width);
+    const key = `${period}|${r.param}`;
+    const group = groups.get(key) ?? { period, param: r.param, values: [] };
+    group.values.push(r.value);
+    groups.set(key, group);
   }
-  return JSON.stringify(out);
+
+  return [...groups.values()]
+    .map(({ period, param, values }) => ({
+      period,
+      param,
+      min: round2(Math.min(...values)),
+      max: round2(Math.max(...values)),
+      mean: round2(values.reduce((sum, v) => sum + v, 0) / values.length),
+      readings: values.length,
+    }))
+    .sort((a, b) => a.period.localeCompare(b.period) || a.param.localeCompare(b.param));
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function historyResult(
+  station: unknown,
+  records: Reading[],
+  startDate: unknown,
+  resolution: Resolution = "auto"
+): string {
+  if (records.length === 0) {
+    return JSON.stringify({
+      station,
+      count: 0,
+      data: [],
+      note: `No readings. api.existenz.ch keeps only the last ${HISTORY_WINDOW_DAYS} days${
+        typeof startDate === "string" ? ` (requested from ${startDate})` : ""
+      }; for older data use the MeteoSwiss/BAFU open-data archives.`,
+    });
+  }
+
+  const render = (level: Exclude<Resolution, "auto">): string => {
+    if (level === "raw") {
+      return JSON.stringify({ station, resolution: "raw", count: records.length, data: records });
+    }
+    const summary = summarise(records, level);
+    const out: Record<string, unknown> = {
+      station,
+      resolution: level,
+      count: summary.length,
+      readings_summarised: records.length,
+      data: summary,
+    };
+    if (resolution === "auto") {
+      out.note = `Summarised ${records.length} readings to ${level} min/max/mean. Use a shorter range, or resolution "raw", for individual readings.`;
+    }
+    return JSON.stringify(out);
+  };
+
+  if (resolution !== "auto") return render(resolution);
+
+  // Keep the finest resolution that fits; an explicit choice is always honoured.
+  for (const level of ["raw", "hourly", "daily"] as const) {
+    const body = render(level);
+    if (body.length <= MAX_RESPONSE_BYTES) return body;
+  }
+  return render("daily");
 }
 
 export async function handleWeather(name: string, args: Record<string, unknown>): Promise<string> {
@@ -218,7 +320,12 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
       if (Array.isArray(payload)) {
-        return historyResult(args.station, extractReadings(payload), args.start_date);
+        return historyResult(
+          args.station,
+          extractReadings(payload),
+          args.start_date,
+          historyResolution(args.resolution)
+        );
       }
       return historyResult(args.station, [], args.start_date);
     }
@@ -257,7 +364,12 @@ export async function handleWeather(name: string, args: Record<string, unknown>)
       const data = await fetchJSON<ApiResponse>(url);
       const payload = data?.payload;
       if (Array.isArray(payload)) {
-        return historyResult(args.station, extractReadings(payload), args.start_date);
+        return historyResult(
+          args.station,
+          extractReadings(payload),
+          args.start_date,
+          historyResolution(args.resolution)
+        );
       }
       return historyResult(args.station, [], args.start_date);
     }

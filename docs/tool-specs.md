@@ -235,8 +235,8 @@
 |-----------|------|----------|-------------|
 | x | number | ✅ | Latitude (WGS84), e.g. `47.3782` |
 | y | number | ✅ | Longitude (WGS84), e.g. `8.5401` |
-| limit | number | ⬜ | Number of results (default: 10) |
-| distance | number | ⬜ | Maximum search radius in meters |
+| limit | number | ⬜ | Keep only the nearest N stations |
+| distance | number | ⬜ | Drop stations further away than this, in metres |
 
 ### Output
 
@@ -1261,12 +1261,14 @@ Or if not a holiday:
 ```json
 {
   "count": 2,
+  "total": 2,
   "affairId": 296480,
   "votes": [
     {
       "id": 5001,
       "affairId": 296480,
       "subject": "Gesamtabstimmung",
+      "type": "Schlussabstimmung",
       "meaningYes": "Annahme der Motion",
       "meaningNo": "Ablehnung der Motion",
       "yes": 102,
@@ -1283,6 +1285,7 @@ Or if not a holiday:
 
 - Not all affairs have recorded votes — some return empty arrays
 - `meaningYes` / `meaningNo` explain what each vote outcome means
+- An affair with hundreds of votes is trimmed to fit the response budget; `omitted` then says how many were dropped
 
 ---
 
@@ -1533,107 +1536,114 @@ Or if not a holiday:
 
 ## Avalanche Module
 
-**Base API:** `https://aws.slf.ch` (bulletins) / `https://whiterisk.ch` (interactive map)  
-**Auth:** None required for PDF bulletins and map; JSON API requires auth  
-**Data source:** SLF – WSL Institute for Snow and Avalanche Research
+**Base API:** `https://aws.slf.ch/api` (OpenAPI at `https://aws.slf.ch/api/bulletin/caaml`)  
+**Auth:** None. The bulletin endpoints are public; only `/api/bulletin-preview` needs a token  
+**Data source:** SLF – WSL Institute for Snow and Avalanche Research (CC BY 4.0)  
+**Format:** EAWS CAAMLv6 JSON. The danger by elevation and aspect sits on the avalanche problems, not on the danger rating.
 
 ---
 
 ## `get_avalanche_bulletin`
 
 **Module:** Avalanche  
-**API source:** `https://aws.slf.ch/api/bulletin/document/full/<lang>` (PDF links)  
-**Description:** Get the current Swiss avalanche danger bulletin from SLF. Returns current bulletin URLs, danger level descriptions, and links to the interactive map. Published daily at ~08:00 and updated at ~17:00 Swiss time (October–May).
+**API source:** `https://aws.slf.ch/api/bulletin/caaml/<lang>/json` (and `/geojson` for coordinate lookups)  
+**Description:** The avalanche bulletin in force for one warning region, a coordinate, or the whole country: danger level, avalanche problems with aspect and elevation, validity window and the SLF advice text.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| region | string | ⬜ | Region ID (e.g. CH-9 for Central Graubünden) or name. Use `list_avalanche_regions` for options. |
-| language | string | ⬜ | Language for bulletin links: `de`, `en`, `fr`, `it` (default: en) |
+| region | string | ⬜ | EAWS region id (e.g. `CH-5123`) or name (e.g. `Davos`). See `list_avalanche_regions`. |
+| lat / lon | number | ⬜ | WGS84 coordinate, given together. Resolved against the bulletin outlines. Alternative to `region`. |
+| language | string | ⬜ | `de`, `en`, `fr`, `it` (default: en) |
+| date | string | ⬜ | `YYYY-MM-DD` or an ISO timestamp for an archived bulletin. Omit for the current one. |
+
+With neither `region` nor a coordinate, the answer is a national overview: one entry per danger area, without the prose.
 
 ### Output
 
 ```json
 {
-  "date": "2026-01-15",
-  "source": "SLF – WSL Institute for Snow and Avalanche Research",
-  "bulletin_url": {
-    "interactive_map": "https://whiterisk.ch/en/conditions",
-    "pdf_full": "https://aws.slf.ch/api/bulletin/document/full/en",
-    "pdf_regions": {
-      "de": "https://aws.slf.ch/api/bulletin/document/full/de",
-      "en": "https://aws.slf.ch/api/bulletin/document/full/en",
-      "fr": "https://aws.slf.ch/api/bulletin/document/full/fr",
-      "it": "https://aws.slf.ch/api/bulletin/document/full/it"
+  "bulletin_in_force": true,
+  "region": { "id": "CH-5123", "name": "Davos", "canton": "GR" },
+  "danger": { "level": 3, "label": "considerable", "within_level": "neutral", "period": "all_day" },
+  "problems": [
+    {
+      "type": "persistent_weak_layers",
+      "danger_level": 3,
+      "aspects": ["N", "NE", "E", "SE", "W", "NW"],
+      "elevation": "above 2200 m",
+      "period": "all_day",
+      "core_zone": "Danger level \"considerable\" (3=) in west to northeast to southeast facing aspects above 2200m.",
+      "advice": "Weak layers in the old snowpack necessitate caution. …"
     }
-  },
-  "danger_scale": {
-    "1": "Low (1/5) — No special precautions needed",
-    "2": "Moderate (2/5) — Careful route selection on steep slopes",
-    "3": "Considerable (3/5) — Careful assessment required; natural and human-triggered avalanches possible",
-    "4": "High (4/5) — Very careful assessment; spontaneous avalanches likely",
-    "5": "Very High (5/5) — Extraordinary situation; avoid all avalanche terrain"
-  },
-  "schedule": {
-    "morning_bulletin": "~08:00 CET/CEST",
-    "afternoon_update": "~17:00 CET/CEST",
-    "season": "October to May (daily). Summer bulletins are occasional."
-  },
-  "region": {
-    "id": "CH-9",
-    "name": "Central Graubünden",
-    "canton": "GR",
-    "typical_elevation_m": 2500,
-    "bulletin_link": "https://whiterisk.ch/en/conditions#region=CH-9"
-  }
+  ],
+  "valid": { "startTime": "2026-02-10T07:00:00Z", "endTime": "2026-02-10T16:00:00Z" },
+  "published": "2026-02-10T07:00:00Z",
+  "next_update": "2026-02-10T16:00:00Z",
+  "snowpack": "Snowpack: Snowpack structure is unfavourable in many locations …",
+  "weather_outlook": "Weather forecast to Tuesday: …",
+  "tendency": "Outlook for Wednesday and Thursday: …",
+  "covers_regions": ["CH-5123", "CH-5215", "…"],
+  "danger_scale": { "1": "Low — …", "5": "Very high — …" },
+  "source": { "provider": "SLF – …", "api": "…", "map": "…", "pdf": "…" }
+}
+```
+
+Out of season the same call answers without an error:
+
+```json
+{
+  "bulletin_in_force": false,
+  "note": "No avalanche bulletin is in force right now.",
+  "season": "SLF publishes the bulletin twice daily (~08:00 and ~17:00) …",
+  "last_bulletin": { "published": "2026-05-17T15:00:00Z", "valid_until": "2026-05-18T15:00:00Z" },
+  "source": { "…": "…" }
 }
 ```
 
 ### Notes
 
-- The SLF JSON API (used by White Risk app) requires authentication — this tool returns PDF/map URLs instead
-- Interactive map at whiterisk.ch shows real-time danger levels by region
-- Bulletin season: October–May daily; summer bulletins are occasional
-- For programmatic access to raw JSON data, contact SLF at lawinfo@slf.ch
+- Danger levels are the EAWS scale 1–5. `within_level` is SLF's own thirds within a level (`minus`, `neutral`, `plus`), which the bulletin also writes as 3-, 3= and 3+.
+- `danger_by_period` appears only when the danger changes during the day; SLF then publishes an `all_day` and a `later` rating.
+- `last_bulletin` comes from `/api/bulletin-list/caaml/<lang>/json?limit=1`, so the off-season answer says when the season actually ended.
+- SLF drops regions without enough snow, so a region can be missing from a bulletin that is otherwise in force.
 
 ---
 
 ## `list_avalanche_regions`
 
 **Module:** Avalanche  
-**API source:** Hardcoded (official SLF/EAWS region definitions)  
-**Description:** List all Swiss avalanche warning regions as defined by SLF/EAWS. Returns region IDs, names, cantons, and typical elevations.
+**API source:** Bundled — the EAWS micro-regions from the SLF bulletin, cantons from swisstopo boundaries  
+**Description:** The 135 SLF/EAWS avalanche warning regions with id, name and canton.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ⬜ | Filter regions by canton abbreviation (e.g. GR, VS, BE). Optional. |
+| search | string | ⬜ | Match on region id or name, case-insensitive |
+| canton | string | ⬜ | Canton code, e.g. `GR` |
 
 ### Output
 
 ```json
 {
-  "count": 22,
-  "source": "SLF/EAWS Swiss Avalanche Warning Regions",
+  "count": 2,
+  "total": 135,
   "regions": [
-    { "id": "CH-1",  "name": "Jura",                   "canton": "JU/NE/VD",    "typical_elevation_m": 800  },
-    { "id": "CH-6",  "name": "Bernese Alps North",      "canton": "BE",          "typical_elevation_m": 2000 },
-    { "id": "CH-7",  "name": "Bernese Alps South",      "canton": "BE/VS",       "typical_elevation_m": 2500 },
-    { "id": "CH-9",  "name": "Central Graubünden",      "canton": "GR",          "typical_elevation_m": 2500 },
-    { "id": "CH-10", "name": "Prättigau & Davos",       "canton": "GR",          "typical_elevation_m": 2000 }
+    { "id": "CH-6112", "name": "obere Leventina", "canton": "TI" },
+    { "id": "CH-6115", "name": "untere Leventina", "canton": "TI" }
   ],
-  "usage": "Pass region ID (e.g. 'CH-9') to get_avalanche_bulletin for region-specific bulletin link",
-  "bulletin_map": "https://whiterisk.ch/en/conditions"
+  "note": "Region names are local toponyms and are the same in all four bulletin languages. …",
+  "source": "SLF avalanche bulletin (EAWS micro-regions), cantons from swisstopo boundaries"
 }
 ```
 
 ### Notes
 
-- 22 official Swiss avalanche warning regions (CH-1 through CH-22)
-- Region IDs follow the EAWS (European Avalanche Warning Services) naming scheme
-- Filter by canton to narrow to a specific area
+- Ids are EAWS micro-region codes (`CH-5123`), not the older coarse region numbering.
+- Names are the local toponyms SLF uses and are identical in de/fr/it/en.
+- CH-3311 is Liechtenstein, which the SLF bulletin covers; it is the one region with no canton.
 
 ---
 
@@ -1763,7 +1773,7 @@ No parameters required.
 ### Notes
 
 - Must be exactly 4 digits
-- Returns `found: false` if postcode is not in the official registry
+- Errors if the postcode is not in the official registry
 - Canton is identified via reverse-geocoding the PLZ centroid
 - Coordinates are the centroid of the PLZ area
 
@@ -1988,7 +1998,7 @@ No parameters required.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ❌ | Canton name or 2-letter code (e.g. 'ZH', 'Zürich', 'Geneva'). Omit for Switzerland total. Use 'all' for all cantons. |
-| year | number | ❌ | Year of data (2010–2024). Default: 2024 |
+| year | number | ❌ | Year of data, from 2010. Default: the latest vintage the cube carries |
 
 ### Output
 
@@ -2248,13 +2258,14 @@ Search Swiss federal dams by name or keyword (SFOE federal supervision registry)
 
 ### `get_dams_by_canton`
 
-List all federal dams in a Swiss canton.
+List the federally supervised dams in a Swiss canton. The response carries `total_in_canton`, so a truncated list is visible as such.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | canton | string | ✅ | Canton abbreviation (e.g. 'VS', 'GR', 'BE') |
+| limit | number | ❌ | Dams to return, 1–100 (default: 20) |
 
 ---
 
@@ -2330,14 +2341,14 @@ Search BFS real estate datasets on opendata.swiss.
 
 ### `get_rent_index`
 
-Swiss rent index and housing cost data from BFS.
+Swiss national consumer price index (LIK/IPC), which includes residential rents — not a dedicated rent index. Monthly. The `coverage` field reports the period the source actually holds.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| canton | string | ❌ | Canton abbreviation (e.g. 'ZH') |
-| year | number | ❌ | Reference year (e.g. 2024) |
+| year | number | ❌ | Reference year, 1982 onward (e.g. 2024) |
+| limit | number | ❌ | Recent months, 1–60 (default: 24); ignored when `year` is set |
 
 ---
 
@@ -2619,4 +2630,4 @@ List GWR buildings around a WGS84 point within a small radius, closest first (on
 ---
 
 *Specification generated from mcp-swiss source code.*  
-*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), arclink.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*
+*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), eida.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*

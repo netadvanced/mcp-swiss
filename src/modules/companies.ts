@@ -1,4 +1,5 @@
-import { fetchJSON, httpFetch } from "../utils/http.js";
+import { cached } from "../utils/cache.js";
+import { fetchBody, fetchJSON } from "../utils/http.js";
 
 const BASE = "https://www.zefix.admin.ch/ZefixREST/api/v1";
 
@@ -78,39 +79,26 @@ export const companiesTools = [
 ];
 
 // ── ZEFIX reference data ─────────────────────────────────────────────────────
-// legalForm/registerOffice/community are small, static lists. Fetch once per
-// process: a canton filter needs the registry-office ids of that canton, and a
-// locality filter needs the community ids of that commune.
+// legalForm/registerOffice/community are small lists that change a few times a
+// year. Cache them: a canton filter needs the registry-office ids of that
+// canton, and a locality filter needs the community ids of that commune.
 
 interface ZefixName { de: string; fr: string; it: string; en: string }
 interface LegalForm { id: number; name: ZefixName; kurzform: ZefixName }
 interface RegisterOffice { id: number; canton: string }
 interface Community { id: number; name: string; canton: string; alternateNames: string[] | null }
 
-let _legalForms: LegalForm[] | null = null;
-let _offices: RegisterOffice[] | null = null;
-let _communities: Community[] | null = null;
+const REFERENCE_TTL_MS = 60 * 60 * 1000; // 1 h, as in snb.ts
+
+const legalForms = cached(REFERENCE_TTL_MS, () => fetchJSON<LegalForm[]>(`${BASE}/legalForm.json`));
+const offices = cached(REFERENCE_TTL_MS, () => fetchJSON<RegisterOffice[]>(`${BASE}/registerOffice.json`));
+const communities = cached(REFERENCE_TTL_MS, () => fetchJSON<Community[]>(`${BASE}/community.json`));
 
 /** Clear the reference-data caches (for testing) */
 export function clearCompaniesCache(): void {
-  _legalForms = null;
-  _offices = null;
-  _communities = null;
-}
-
-async function legalForms(): Promise<LegalForm[]> {
-  _legalForms ??= await fetchJSON<LegalForm[]>(`${BASE}/legalForm.json`);
-  return _legalForms;
-}
-
-async function offices(): Promise<RegisterOffice[]> {
-  _offices ??= await fetchJSON<RegisterOffice[]>(`${BASE}/registerOffice.json`);
-  return _offices;
-}
-
-async function communities(): Promise<Community[]> {
-  _communities ??= await fetchJSON<Community[]>(`${BASE}/community.json`);
-  return _communities;
+  legalForms.clear();
+  offices.clear();
+  communities.clear();
 }
 
 /** Strip diacritics and case so "geneve" matches "Genève". */
@@ -146,19 +134,25 @@ interface SearchResponse {
 }
 
 async function search(body: Record<string, unknown>): Promise<string> {
-  const response = await httpFetch(`${BASE}/firm/search.json`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ languageKey: "en", ...body }),
-  });
-  if (response.status === 404) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-  const data = await response.json() as SearchResponse;
+  const data = await fetchBody<SearchResponse | null>(
+    `${BASE}/firm/search.json`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ languageKey: "en", ...body }),
+      rawStatus: true,
+    },
+    async (response) => {
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return response.json() as Promise<SearchResponse>;
+    }
+  );
+  if (!data) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
   // ZEFIX answers "no result" and "filter too narrow" with a 200 + error body.
   if (data.error || !data.list?.length) return JSON.stringify({ companies: [], hasMoreResults: false }, null, 2);
 
-  const [forms, regOffices] = await Promise.all([legalForms(), offices()]);
+  const [forms, regOffices] = await Promise.all([legalForms.get(), offices.get()]);
   const formById = new Map(forms.map((f) => [f.id, f]));
   const cantonByOffice = new Map(regOffices.map((o) => [o.id, o.canton]));
 
@@ -198,7 +192,7 @@ export async function handleCompanies(name: string, args: Record<string, unknown
 
       if (args.canton !== undefined) {
         const canton = String(args.canton).toUpperCase();
-        const ids = (await offices()).filter((o) => o.canton === canton).map((o) => o.id);
+        const ids = (await offices.get()).filter((o) => o.canton === canton).map((o) => o.id);
         if (ids.length === 0) {
           throw new Error(`Unknown canton "${args.canton as string}". Use list_cantons for the 26 valid codes.`);
         }
@@ -208,7 +202,7 @@ export async function handleCompanies(name: string, args: Record<string, unknown
 
       if (args.legal_form !== undefined) {
         const id = Number(args.legal_form);
-        if (!Number.isInteger(id) || !(await legalForms()).some((f) => f.id === id)) {
+        if (!Number.isInteger(id) || !(await legalForms.get()).some((f) => f.id === id)) {
           throw new Error(`Unknown legal_form "${String(args.legal_form)}". Use list_legal_forms for the valid ids.`);
         }
         body.legalForms = [id];
@@ -226,7 +220,7 @@ export async function handleCompanies(name: string, args: Record<string, unknown
 
       const data = await fetchJSON<CompanyFull>(`${BASE}/firm/${raw}.json`);
 
-      const [forms, regOffices] = await Promise.all([legalForms(), offices()]);
+      const [forms, regOffices] = await Promise.all([legalForms.get(), offices.get()]);
       const shabPub = Array.isArray(data.shabPub) ? data.shabPub : [];
       const slim = {
         ...data,
@@ -242,7 +236,7 @@ export async function handleCompanies(name: string, args: Record<string, unknown
       const wanted = fold(String(args.locality ?? ""));
       if (!wanted) throw new Error("locality is required, e.g. Zug or Lausanne.");
 
-      const matches = (await communities()).filter(
+      const matches = (await communities.get()).filter(
         (c) => fold(c.name) === wanted || (c.alternateNames ?? []).some((a) => fold(a) === wanted),
       );
       if (matches.length === 0) {
@@ -261,7 +255,7 @@ export async function handleCompanies(name: string, args: Record<string, unknown
       return JSON.stringify(CANTONS, null, 2);
 
     case "list_legal_forms": {
-      const forms = (await legalForms())
+      const forms = (await legalForms.get())
         .filter((f) => f.id > 0)
         .map((f) => ({ id: f.id, abbr: f.kurzform.de, name: f.name.de, nameEn: f.name.en }));
       return JSON.stringify(forms, null, 2);

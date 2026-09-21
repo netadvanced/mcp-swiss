@@ -66,11 +66,10 @@ describe("lookup_postcode (live API)", () => {
     expect(result.also_in_cantons).toContain("ZG");
   });
 
-  it("returns found:false for fictional PLZ 9998", async () => {
-    const result = JSON.parse(
-      await handlePost("lookup_postcode", { postcode: "9998" })
-    );
-    expect(result.found).toBe(false);
+  it("rejects for the fictional PLZ 9998", async () => {
+    await expect(
+      handlePost("lookup_postcode", { postcode: "9998" })
+    ).rejects.toThrow(/No Swiss postcode 9998/);
   });
 
   it("response is under 50K chars", async () => {

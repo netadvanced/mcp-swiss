@@ -154,6 +154,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # High and critical advisories block the build. Moderate ones are mostly
+      # transitive dev-only noise and would just get ignored.
       - name: npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: npm audit --audit-level=high

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { buildUrl, fetchJSON, httpFetch, USER_AGENT, VERSION } from '../../src/utils/http.js';
+import { swissToday } from '../../src/utils/date.js';
+import { cached } from '../../src/utils/cache.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -137,6 +141,113 @@ describe('fetchJSON', () => {
   });
 });
 
+// ── retry against a real socket ───────────────────────────────────────────────
+
+describe('fetchJSON retry over a real connection', () => {
+  let server: Server | undefined;
+
+  afterEach(async () => {
+    if (server) {
+      const s = server;
+      server = undefined;
+      await new Promise((r) => s.close(r));
+    }
+  });
+
+  async function serve(handler: (attempt: number, res: import('node:http').ServerResponse) => void) {
+    let attempt = 0;
+    server = createServer((_req, res) => handler(++attempt, res));
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+    return { url: `http://127.0.0.1:${port}/`, attempts: () => attempt };
+  }
+
+  it('retries a connection dropped part-way through the body', async () => {
+    // This is what transport.opendata.ch does under its rate limit: headers and
+    // some bytes arrive, then the socket dies. Retrying only around fetch()
+    // would never see it, because the failure happens at read time.
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': '40' });
+        res.write('{"partial":');
+        res.socket?.destroy();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('retries a connection dropped before the headers', async () => {
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.socket?.destroy();
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('retries a 429 and honours Retry-After', async () => {
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(429, { 'Retry-After': '0' });
+        res.end('slow down');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('gives up on a persistent 429 with the status in the message', async () => {
+    const { url, attempts } = await serve((_attempt, res) => {
+      res.writeHead(429, { 'Retry-After': '0' });
+      res.end('slow down');
+    });
+
+    await expect(fetchJSON(url)).rejects.toThrow('HTTP 429');
+    expect(attempts()).toBe(2);
+  });
+
+  it('caps a long Retry-After rather than stalling the call', async () => {
+    const { url } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(503, { 'Retry-After': '3600' });
+        res.end('maintenance');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    const started = Date.now();
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    // 3600 s would be honoured literally without the cap
+    expect(Date.now() - started).toBeLessThan(12_000);
+  }, 20_000);
+
+  it('does not retry a 500', async () => {
+    const { url, attempts } = await serve((_attempt, res) => {
+      res.writeHead(500);
+      res.end('nope');
+    });
+
+    await expect(fetchJSON(url)).rejects.toThrow('HTTP 500');
+    expect(attempts()).toBe(1);
+  });
+});
+
 // ── httpFetch ─────────────────────────────────────────────────────────────────
 
 describe('httpFetch', () => {
@@ -207,5 +318,71 @@ describe('httpFetch', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
 
     await expect(httpFetch('https://example.com/slow')).rejects.toThrow(/timed out after .* https:\/\/example\.com\/slow/);
+  });
+});
+
+// ── swissToday ───────────────────────────────────────────────────────────────
+
+describe('swissToday', () => {
+  it('returns the Europe/Zurich calendar date, not the UTC one', () => {
+    // 00:30 CEST on 1 August is still 22:30 UTC on 31 July
+    expect(swissToday(new Date('2026-08-01T00:30:00+02:00'))).toBe('2026-08-01');
+    // 01:30 CET on 1 January is 00:30 UTC the same day
+    expect(swissToday(new Date('2026-01-01T01:30:00+01:00'))).toBe('2026-01-01');
+    // just before midnight in Zurich, UTC is still on the same day
+    expect(swissToday(new Date('2026-06-30T23:59:00+02:00'))).toBe('2026-06-30');
+  });
+});
+
+// ── cached ────────────────────────────────────────────────────────────────────
+
+describe('cached', () => {
+  it('loads once and serves the same value', async () => {
+    const load = vi.fn().mockResolvedValue('v1');
+    const value = cached(1000, load);
+    expect(await value.get()).toBe('v1');
+    expect(await value.get()).toBe('v1');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('concurrent callers share one load', async () => {
+    let release!: (v: string) => void;
+    const load = vi.fn(() => new Promise<string>((resolve) => { release = resolve; }));
+    const value = cached(1000, load);
+    const all = Promise.all([value.get(), value.get(), value.get()]);
+    release('v1');
+    expect(await all).toEqual(['v1', 'v1', 'v1']);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads once the TTL has passed', async () => {
+    vi.useFakeTimers();
+    try {
+      const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+      const value = cached(1000, load);
+      expect(await value.get()).toBe('v1');
+      vi.advanceTimersByTime(1001);
+      expect(await value.get()).toBe('v2');
+      expect(load).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not cache a rejection', async () => {
+    const load = vi.fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce('v1');
+    const value = cached(1000, load);
+    await expect(value.get()).rejects.toThrow('boom');
+    expect(await value.get()).toBe('v1');
+  });
+
+  it('clear() forces the next get to reload', async () => {
+    const load = vi.fn().mockResolvedValueOnce('v1').mockResolvedValueOnce('v2');
+    const value = cached(60_000, load);
+    expect(await value.get()).toBe('v1');
+    value.clear();
+    expect(await value.get()).toBe('v2');
   });
 });
