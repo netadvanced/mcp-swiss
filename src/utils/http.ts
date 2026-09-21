@@ -52,6 +52,23 @@ function isTransientNetworkError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Statuses worth another attempt: rate limits and transient server faults. */
+const RETRYABLE_STATUS = [429, 502, 503, 504];
+const MAX_RETRY_AFTER_MS = 10_000;
+
+/**
+ * Honour Retry-After when the server sends one (seconds or an HTTP date),
+ * capped so a long cool-off does not stall a tool call.
+ */
+function retryAfterMs(response: Response, fallback: number): number {
+  const header = response.headers?.get("retry-after");
+  if (!header) return fallback;
+  const seconds = Number(header);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return fallback;
+  return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
+
 /**
  * fetch() wrapper used by every module: sets the mcp-swiss-ng User-Agent and
  * aborts after DEFAULT_TIMEOUT_MS (override with MCP_SWISS_TIMEOUT_MS) so a
@@ -97,6 +114,13 @@ export async function fetchBody<T>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const response = await httpFetch(url, { ...rest, retries: 0 });
+
+      // A rate limit is the upstream asking us to wait, not a failed call.
+      if (RETRYABLE_STATUS.includes(response.status) && attempt < retries) {
+        await sleep(retryAfterMs(response, RETRY_DELAY_MS * (attempt + 1)));
+        lastError = new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
+        continue;
+      }
       if (!response.ok && !rest.rawStatus) {
         throw new Error(`HTTP ${response.status}: ${response.statusText} — ${url}`);
       }

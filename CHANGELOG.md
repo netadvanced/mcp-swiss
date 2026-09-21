@@ -51,6 +51,7 @@ First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://gi
 - SECURITY.md described a stdio-only tool that opens no port
 
 ### Fixed
+- A rate-limited or temporarily unavailable upstream (429, 502, 503, 504) is retried once, honouring `Retry-After` up to 10 s. BFS PxWeb returns 429 under load, which used to surface as a failed tool call
 - Argument validation rejected values the handlers had always accepted: a station id sent as `2135` rather than `"2135"`, and enum values in the wrong case (`type: "IMIS"`, `canton: "vs"`). Both work again, and the handler receives the canonical spelling
 - A session slot stayed reserved if building the server threw, so repeated failures could fill the cap permanently while `/health` reported no sessions
 - `npm test` now fails any test that reaches the network. One pollen test was quietly fetching live data and passing on it

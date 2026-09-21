@@ -195,6 +195,48 @@ describe('fetchJSON retry over a real connection', () => {
     expect(attempts()).toBe(2);
   });
 
+  it('retries a 429 and honours Retry-After', async () => {
+    const { url, attempts } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(429, { 'Retry-After': '0' });
+        res.end('slow down');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    expect(attempts()).toBe(2);
+  });
+
+  it('gives up on a persistent 429 with the status in the message', async () => {
+    const { url, attempts } = await serve((_attempt, res) => {
+      res.writeHead(429, { 'Retry-After': '0' });
+      res.end('slow down');
+    });
+
+    await expect(fetchJSON(url)).rejects.toThrow('HTTP 429');
+    expect(attempts()).toBe(2);
+  });
+
+  it('caps a long Retry-After rather than stalling the call', async () => {
+    const { url } = await serve((attempt, res) => {
+      if (attempt === 1) {
+        res.writeHead(503, { 'Retry-After': '3600' });
+        res.end('maintenance');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+
+    const started = Date.now();
+    await expect(fetchJSON(url)).resolves.toEqual({ ok: true });
+    // 3600 s would be honoured literally without the cap
+    expect(Date.now() - started).toBeLessThan(12_000);
+  }, 20_000);
+
   it('does not retry a 500', async () => {
     const { url, attempts } = await serve((_attempt, res) => {
       res.writeHead(500);
