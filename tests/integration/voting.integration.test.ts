@@ -1,245 +1,177 @@
-// Integration tests for Swiss Voting module — hit real data.bs.ch API
+// Integration tests for the voting module — hit the live BFS CSV exports.
 // Run with: npm run test:integration
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   handleGetVotingResults,
   handleSearchVotes,
   handleGetVoteDetails,
+  clearVotingCache,
 } from "../../src/modules/voting.js";
 
-describe("get_voting_results (live API)", () => {
-  it("returns at least 1 vote", async () => {
+/** The per-canton file is ~10 MB, so the detail tests need room. */
+const SLOW = 150_000;
+
+beforeAll(() => clearVotingCache());
+afterAll(() => clearVotingCache());
+
+describe("get_voting_results (live)", () => {
+  it("returns recent federal votes", async () => {
     const result = JSON.parse(await handleGetVotingResults({}));
-    expect(result.count).toBeGreaterThanOrEqual(1);
+
+    expect(result.count).toBeGreaterThan(0);
+    expect(result.source).toMatch(/BFS/);
   });
 
-  it("returns votes array with data", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
-    expect(Array.isArray(result.votes)).toBe(true);
-    expect(result.votes.length).toBeGreaterThan(0);
-  });
+  it("gives every vote an ISO date and a title", async () => {
+    const result = JSON.parse(await handleGetVotingResults({ limit: 20 }));
 
-  it("each vote has title, date, type", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
     for (const vote of result.votes) {
+      expect(vote.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(typeof vote.title).toBe("string");
       expect(vote.title.length).toBeGreaterThan(0);
-      expect(typeof vote.date).toBe("string");
-      expect(vote.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(typeof vote.type).toBe("string");
+      expect(typeof vote.accepted).toBe("boolean");
     }
   });
 
-  it("each vote has numeric vote counts", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
+  it("keeps turnout and yes share inside a plausible range", async () => {
+    const result = JSON.parse(await handleGetVotingResults({ limit: 30 }));
+
     for (const vote of result.votes) {
-      expect(typeof vote.yes_count).toBe("number");
-      expect(typeof vote.no_count).toBe("number");
-      expect(vote.yes_count).toBeGreaterThan(0);
-      expect(vote.no_count).toBeGreaterThan(0);
+      if (vote.turnout !== null) {
+        expect(vote.turnout).toBeGreaterThan(0);
+        expect(vote.turnout).toBeLessThanOrEqual(100);
+      }
+      if (vote.yes_percent !== null) {
+        expect(vote.yes_percent).toBeGreaterThanOrEqual(0);
+        expect(vote.yes_percent).toBeLessThanOrEqual(100);
+      }
     }
   });
 
-  it("yes_percentage is between 0 and 100", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
-    for (const vote of result.votes) {
-      expect(vote.yes_percentage).toBeGreaterThanOrEqual(0);
-      expect(vote.yes_percentage).toBeLessThanOrEqual(100);
-    }
-  });
+  it("reaches back to the first federal votes of 1848", async () => {
+    const result = JSON.parse(await handleGetVotingResults({ year: 1848 }));
 
-  it("eligible_voters is a positive number", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
-    for (const vote of result.votes) {
-      expect(vote.eligible_voters).toBeGreaterThan(0);
-    }
-  });
-
-  it("year filter works for 2024", async () => {
-    const result = JSON.parse(await handleGetVotingResults({ year: 2024 }));
     expect(result.count).toBeGreaterThan(0);
-    // All votes should be from 2024
-    for (const vote of result.votes) {
-      expect(vote.date).toMatch(/^2024/);
-    }
+    expect(result.votes[0].date.startsWith("1848")).toBe(true);
   });
 
-  it("includes source referencing Basel-Stadt", async () => {
+  it("reports how current the data is", async () => {
     const result = JSON.parse(await handleGetVotingResults({}));
-    expect(result.source).toContain("Basel");
+
+    expect(result.as_of).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it("includes data_url", async () => {
-    const result = JSON.parse(await handleGetVotingResults({}));
-    expect(result.data_url).toContain("data.bs.ch");
-  });
+  it("stays well under the response budget", async () => {
+    const raw = await handleGetVotingResults({ limit: 50 });
 
-  it("respects limit=3", async () => {
-    const result = JSON.parse(await handleGetVotingResults({ limit: 3 }));
-    expect(result.votes.length).toBeLessThanOrEqual(3);
-  });
-
-  it("response is under 50K chars", async () => {
-    const result = await handleGetVotingResults({});
-    expect(result.length).toBeLessThan(50000);
-  });
-
-  it("returns national vote type for known votes", async () => {
-    // Get recent votes (no year filter to avoid API limitation)
-    const result = JSON.parse(await handleGetVotingResults({ limit: 10 }));
-    expect(result.count).toBeGreaterThan(0);
-    // At least some votes should be national (most Swiss popular votes are national)
-    const types = result.votes.map((v: { type: string }) => v.type);
-    expect(types.some((t: string) => t === "national" || t === "kantonal")).toBe(true);
+    expect(raw.length).toBeLessThan(50000);
   });
 });
 
-describe("search_votes (live API)", () => {
-  it("finds votes for 'Initiative'", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "Initiative" }));
-    expect(result.count).toBeGreaterThan(0);
-    expect(result.votes.length).toBeGreaterThan(0);
+describe("search_votes (live)", () => {
+  // The 1992 EEA vote is settled history: rejected on 49.7% yes with the
+  // cantons 7 : 16, so it is a safe anchor for real numbers.
+  it("finds the 1992 EEA vote with its actual national result", async () => {
+    const result = JSON.parse(await handleSearchVotes({ query: "Wirtschaftsraum" }));
+    const vote = result.votes.find((v: { id: number }) => v.id === 3880);
+
+    expect(vote).toBeDefined();
+    expect(vote.date).toBe("1992-12-06");
+    expect(vote.accepted).toBe(false);
+    expect(vote.yes_percent).toBeCloseTo(49.66, 1);
+    expect(vote.turnout).toBeCloseTo(78.74, 1);
+    expect(vote.cantons_yes).toBe(7);
+    expect(vote.cantons_no).toBe(16);
+    expect(vote.cantonal_majority).toBe(false);
   });
 
-  it("all returned votes contain the search keyword", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "Initiative" }));
-    for (const vote of result.votes) {
-      expect(vote.title.toLowerCase()).toContain("initiative");
-    }
-  });
-
-  it("returns query field matching input", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "AHV" }));
-    expect(result.query).toBe("AHV");
-  });
-
-  it("empty result for nonexistent keyword", async () => {
+  it("finds the same vote from its French title", async () => {
     const result = JSON.parse(
-      await handleSearchVotes({ query: "ZuckersteuerXYZ123" }),
+      await handleSearchVotes({ query: "espace économique", lang: "fr" }),
     );
+    const vote = result.votes.find((v: { id: number }) => v.id === 3880);
+
+    expect(vote).toBeDefined();
+    expect(vote.title).toMatch(/espace économique/i);
+  });
+
+  it("returns an empty result rather than failing on a nonsense keyword", async () => {
+    const result = JSON.parse(await handleSearchVotes({ query: "zzzznotavote" }));
+
     expect(result.count).toBe(0);
-    expect(result.votes).toHaveLength(0);
+    expect(result.votes).toEqual([]);
   });
 
-  it("respects limit", async () => {
-    const result = JSON.parse(
-      await handleSearchVotes({ query: "Initiative", limit: 2 }),
-    );
-    expect(result.votes.length).toBeLessThanOrEqual(2);
-  });
+  it("stays well under the response budget", async () => {
+    const raw = await handleSearchVotes({ query: "Initiative", limit: 20 });
 
-  it("response is under 50K chars", async () => {
-    const result = await handleSearchVotes({ query: "Initiative" });
-    expect(result.length).toBeLessThan(50000);
-  });
-
-  it("finds Klima-Gesetz vote", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "Klima" }));
-    expect(result.count).toBeGreaterThan(0);
-    const klima = result.votes.find((v: { title: string }) =>
-      v.title.includes("Klima"),
-    );
-    expect(klima).toBeDefined();
-  });
-
-  it("votes have yes_percentage and eligible_voters", async () => {
-    const result = JSON.parse(await handleSearchVotes({ query: "Initiative" }));
-    for (const vote of result.votes) {
-      expect(typeof vote.yes_percentage).toBe("number");
-      expect(typeof vote.eligible_voters).toBe("number");
-    }
+    expect(raw.length).toBeLessThan(50000);
   });
 });
 
-describe("get_vote_details (live API)", () => {
-  it("returns details for a known vote by title", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    expect(result.title).toContain("Nationalstrassen");
-    expect(result.breakdown).toBeDefined();
-  });
+describe("get_vote_details (live)", () => {
+  it(
+    "breaks the 1992 EEA vote down across all 26 cantons",
+    async () => {
+      const result = JSON.parse(
+        await handleGetVoteDetails({ vote_title: "Europäischen Wirtschaftsraum" }),
+      );
 
-  it("returns breakdown with at least 2 districts", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    expect(result.breakdown.length).toBeGreaterThanOrEqual(2);
-  });
+      expect(result.id).toBe(3880);
+      expect(result.cantons).toHaveLength(26);
 
-  it("breakdown districts include Basel and Riehen", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    const districts = result.breakdown.map((d: { district: string }) => d.district);
-    expect(districts).toContain("Basel");
-    expect(districts).toContain("Riehen");
-  });
+      const names = result.cantons.map((c: { canton: string }) => c.canton);
+      expect(names).toContain("Vaud");
+      expect(names).toContain("Uri");
 
-  it("returns totals object with all fields", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    expect(typeof result.totals.yes_count).toBe("number");
-    expect(typeof result.totals.no_count).toBe("number");
-    expect(typeof result.totals.yes_percentage).toBe("number");
-    expect(typeof result.totals.eligible_voters).toBe("number");
-  });
+      for (const canton of result.cantons) {
+        expect(canton.yes_count).toBeGreaterThan(0);
+        expect(canton.yes_percent).toBeGreaterThanOrEqual(0);
+        expect(canton.yes_percent).toBeLessThanOrEqual(100);
+      }
+    },
+    SLOW,
+  );
 
-  it("totals.yes_count equals sum of breakdown", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    const sumYes = result.breakdown.reduce(
-      (s: number, d: { yes_count: number }) => s + d.yes_count,
-      0,
-    );
-    expect(result.totals.yes_count).toBe(sumYes);
-  });
+  it(
+    "carries the vote type and at least one theme",
+    async () => {
+      const result = JSON.parse(
+        await handleGetVoteDetails({ vote_title: "Europäischen Wirtschaftsraum" }),
+      );
 
-  it("rejects for a completely unknown vote", async () => {
-    await expect(
-      handleGetVoteDetails({ vote_title: "ZuckersteuerNonExistent99" }),
-    ).rejects.toThrow(/No vote matches/);
-  });
+      expect(typeof result.type).toBe("string");
+      expect(result.type.length).toBeGreaterThan(0);
+      expect(result.themes.length).toBeGreaterThan(0);
+    },
+    SLOW,
+  );
 
-  it("accepts date parameter", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ date: "2024-11-24" }),
-    );
-    expect(result.date).toBe("2024-11-24");
-    expect(result.breakdown.length).toBeGreaterThan(0);
-  });
+  it(
+    "offers the candidates instead of guessing when a date holds several votes",
+    async () => {
+      const result = JSON.parse(await handleGetVoteDetails({ date: "2024-11-24" }));
 
-  it("accepts both vote_title and date", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({
-        vote_title: "Nationalstrassen",
-        date: "2024-11-24",
-      }),
-    );
-    expect(result.title).toContain("Nationalstrassen");
-    expect(result.date).toBe("2024-11-24");
-  });
+      expect(result.matches.length).toBeGreaterThan(1);
+      expect(result.cantons).toBeUndefined();
+    },
+    SLOW,
+  );
 
-  it("response is under 50K chars", async () => {
-    const result = await handleGetVoteDetails({ vote_title: "Nationalstrassen" });
-    expect(result.length).toBeLessThan(50000);
-  });
+  it(
+    "stays well under the response budget with all 26 cantons",
+    async () => {
+      const raw = await handleGetVoteDetails({
+        vote_title: "Europäischen Wirtschaftsraum",
+      });
 
-  it("yes_percentage in totals is between 0 and 100", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    expect(result.totals.yes_percentage).toBeGreaterThanOrEqual(0);
-    expect(result.totals.yes_percentage).toBeLessThanOrEqual(100);
-  });
+      expect(raw.length).toBeLessThan(50000);
+    },
+    SLOW,
+  );
 
-  it("source contains data.bs.ch", async () => {
-    const result = JSON.parse(
-      await handleGetVoteDetails({ vote_title: "Nationalstrassen" }),
-    );
-    expect(result.source).toContain("data.bs.ch");
+  it("rejects a call with neither title nor date", async () => {
+    await expect(handleGetVoteDetails({})).rejects.toThrow(/vote_title or date/i);
   });
 });

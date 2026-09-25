@@ -9,6 +9,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- `voting` returned Basel-Stadt's counts for every query, including "how did Switzerland vote on X". The three tools now read the Federal Statistical Office's federal vote exports, so the numbers are the national result. Coverage goes back to 1848 instead of 2021, `get_vote_details` breaks a vote down across all 26 cantons rather than the four Basel-Stadt districts, and the response reports turnout, whether the vote passed, and the cantonal majority (Ständemehr) — `null` where no cantonal majority was required.
+
+### Added
+
+- `voting` tools take a `lang` parameter (de, fr, it, rm, en) for the title language, and `search_votes` matches a keyword against all five official-language titles, so a French keyword finds a vote whatever the output language.
+- `get_vote_details` lists the candidate votes instead of silently picking one when a polling day holds several.
+
 ## [0.9.0] - 2026-09-20
 
 First release of the **mcp-swiss-ng** fork of [vikramgorla/mcp-swiss](https://github.com/vikramgorla/mcp-swiss), rebased on upstream `develop` (v0.8.0: pollen module, snow fixes, dependency updates through 2026-09-14).

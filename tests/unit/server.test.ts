@@ -183,10 +183,12 @@ describe("error reporting", () => {
   });
 
   it("leaves an empty but valid result as a normal result", async () => {
+    // A header-only CSV: the BFS file parses fine and simply holds no match.
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve([]),
+      text: () => Promise.resolve('"vorlage_id","vorlage_titel_de","urnengang_datum"'),
     }));
     const { client } = await connect({ modules: resolveModules(new Set(["voting"])) });
     const result = await client.callTool({

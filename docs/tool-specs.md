@@ -2203,9 +2203,16 @@ Search SRF Swiss news by keyword.
 
 ## Voting
 
+Federal popular votes (Volksabstimmungen) for the whole of Switzerland, from the
+Federal Statistical Office. Coverage starts in 1848; votes before 1866 have
+cantonal counts only, with no popular vote figures. Data is current through the
+last completed vote — the `as_of` field in every response says when. Same-day
+live results are not covered.
+
 ### `get_voting_results`
 
-Get results of Swiss popular votes from Basel-Stadt open data.
+National results for federal popular votes: turnout, yes/no counts, whether the
+vote passed, and the cantonal majority (Ständemehr).
 
 ### Input
 
@@ -2213,25 +2220,34 @@ Get results of Swiss popular votes from Basel-Stadt open data.
 |-----------|------|----------|-------------|
 | year | number | ❌ | Filter by year (e.g. 2024) |
 | limit | number | ❌ | Max results (default: 10, max: 50) |
+| lang | string | ❌ | Title language: de, fr, it, rm, en (default: de) |
+
+`cantonal_majority` is `true` or `false` where a cantonal majority was required,
+and `null` for ordinary law changes where it does not apply.
 
 ---
 
 ### `search_votes`
 
-Search Swiss popular votes by keyword.
+Search federal votes by a keyword from the title. The keyword is matched against
+all five official-language titles, so a French keyword finds the vote even when
+the output language is German.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| query | string | ✅ | Search keyword (German/French/Italian) |
+| query | string | ✅ | Search keyword in any official language |
 | limit | number | ❌ | Max results (default: 5, max: 20) |
+| lang | string | ❌ | Title language: de, fr, it, rm, en (default: de) |
 
 ---
 
 ### `get_vote_details`
 
-Get detailed per-district breakdown of a Swiss popular vote.
+One vote in detail: the national result, the vote type and themes, and the
+breakdown across all 26 cantons. When several votes share a polling day, the
+response lists the candidates instead of picking one.
 
 ### Input
 
@@ -2239,6 +2255,9 @@ Get detailed per-district breakdown of a Swiss popular vote.
 |-----------|------|----------|-------------|
 | vote_title | string | ❌ | Partial or full vote title |
 | date | string | ❌ | Vote date in YYYY-MM-DD format |
+| lang | string | ❌ | Title language: de, fr, it, rm, en (default: de) |
+
+At least one of `vote_title` or `date` is required.
 
 ---
 

@@ -254,15 +254,15 @@
     },
     {
       "name": "get_voting_results",
-      "description": "Popular vote (Volksabstimmung) results as counted in Basel-Stadt: national and cantonal votes since 2021"
+      "description": "Federal popular vote results since 1848: turnout, yes/no counts, cantonal majority"
     },
     {
       "name": "search_votes",
-      "description": "Search popular votes by title keyword (Basel-Stadt results)"
+      "description": "Search federal votes by title keyword, in any official language"
     },
     {
       "name": "get_vote_details",
-      "description": "Per-district Basel-Stadt results (Basel, Riehen, Bettingen, abroad) for one vote. Give vote_title and/or date"
+      "description": "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give vote_title and/or date"
     },
     {
       "name": "search_dams",
