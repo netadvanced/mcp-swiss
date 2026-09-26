@@ -1245,10 +1245,14 @@
     },
     {
       "name": "get_vote_details",
-      "description": "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give vote_title and/or date",
+      "description": "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give id, or vote_title and/or date",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "number",
+            "description": "Vote id from search_votes"
+          },
           "vote_title": {
             "type": "string",
             "description": "Partial title, e.g. CO2-Gesetz"

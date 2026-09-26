@@ -13,10 +13,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 - `voting` returned Basel-Stadt's counts for every query, including "how did Switzerland vote on X". The three tools now read the Federal Statistical Office's federal vote exports, so the numbers are the national result. Coverage goes back to 1848 instead of 2021, `get_vote_details` breaks a vote down across all 26 cantons rather than the four Basel-Stadt districts, and the response reports turnout, whether the vote passed, and the cantonal majority (Ständemehr) — `null` where no cantonal majority was required.
 
+### Changed
+
+- `voting` output fields were renamed with the move to national data: `yes_percentage` is now `yes_percent`, `totals` is `national`, and `breakdown[].district` is `cantons[].canton`. The vote `type` is only in `get_vote_details`, and the `note` field is gone. A vote still flagged provisional by BFS carries `provisional: true`.
+- `voting` data is cached for 6 hours and concurrent calls share one download, so a long-running HTTP server picks up new results.
+- `limit` on the voting tools is clamped to at least 1; a negative value used to return nearly every vote.
+
 ### Added
 
+- `get_vote_details` accepts the `id` that `search_votes` returns.
 - `voting` tools take a `lang` parameter (de, fr, it, rm, en) for the title language, and `search_votes` matches a keyword against all five official-language titles, so a French keyword finds a vote whatever the output language.
-- `get_vote_details` lists the candidate votes instead of silently picking one when a polling day holds several.
+- `get_vote_details` lists up to 20 candidate votes instead of silently picking one when a title or polling day matches several.
+- For votes between 1960 and 1981 BFS lists some cantons twice; `get_vote_details` keeps the row set that adds up to the national result.
 
 ## [0.9.0] - 2026-09-20
 

@@ -2,14 +2,18 @@
 // (assets 33707795 national, 33707737 per canton, 33707794 type/theme).
 // Kept verbatim so a change in the upstream column layout shows up as a test failure.
 
-// Four votes from 2024-11-24 plus the 1848 total revision (no popular counts).
+// Four votes from 2024-11-24, the 1848 total revision (no popular counts), the EEA
+// 1992, a popular initiative that passed the people but not the cantons (6360),
+// and a June 2026 ordinary law still flagged provisional (6870).
 export const NATIONAL_CSV = `"vorlage_id","vorlage_titel_de","vorlage_titel_fr","vorlage_titel_it","vorlage_titel_rm","vorlage_titel_en","urnengang_id","urnengang_datum","stimmberechtigte","stimmzettel_eingelegt","stimmbeteiligung","stimmzettel_leer","stimmzettel_ungueltig","stimmen_gueltig","stimmen_ja","stimmen_nein","ja_prozent","stimmen_ohne_antwort","staende_ja_ganz","staende_ja_halb","staende_nein_ganz","staende_nein_halb","staende_total_ganz","staende_total_halb","staende_ja","staende_total","staende_nein","staendemehr","vorlage_angenommen","provisorisch","daten_stand"
 6760,"Änderung des Bundesgesetzes über die Krankenversicherung (KVG) (Einheitliche Finanzierung der Leistungen)","Modification de la loi fédérale sur l’assurance-maladie (LAMal) (financement uniforme des prestations)","Modifica della legge federale sull’assicurazione malattie (LAMal) (Finanziamento uniforme delle prestazioni)","Midada da la Lescha federala davart l'assicuranza da malsauns (LAMal) (finanziaziun unitara da las prestaziuns)","Amendment to the Health Insurance Act (standardised financing of benefits)",326,"2024-11-24",5615207,2520581,"44.888478732841",68798,8212,2443571,1302687,1140884,"53.310789823582",,14,6,6,0,20,6,"17",23,"6",,1,0,2026-06-14 18:17:40.904972
 6750,"Änderung des Obligationenrechts (Mietrecht: Kündigung wegen Eigenbedarfs)","Modification du code des obligations (droit du bail: résiliation pour besoin propre)","Modifica del Codice delle obbligazioni (Diritto di locazione: disdetta per bisogno personale)","Midada dal Dretg d'obligaziuns (dretg da locaziun: disditga pervia d'in agen basegn)","Amendment to the Code of Obligations (tenancy law: termination to permit personal use)",326,"2024-11-24",5615207,2522010,"44.9139274829939",41516,7667,2472827,1141693,1331134,"46.1695460297061",,10,4,10,2,20,6,"12",23,"11",,0,0,2026-06-14 18:17:40.904972
 6740,"Änderung des Obligationenrechts (Mietrecht: Untermiete)","Modification du code des obligations (droit du bail: sous-location)","Modifica del Codice delle obbligazioni (Diritto di locazione: sublocazione)","Midada dal Dretg d'obligaziuns (dretg da locaziun: sutlocaziun)","Amendment to the Code of Obligations (tenancy law: subletting)",326,"2024-11-24",5615207,2521429,"44.9035805803775",42203,7765,2471461,1196643,1274818,"48.418445607679",,11,5,9,1,20,6,"13.5",23,"9.5",,0,0,2026-06-14 18:17:40.904972
 6730,"Bundesbeschluss über den Ausbauschritt 2023 für die Nationalstrassen","Arrêté fédéral sur l’étape d’aménagement 2023 des routes nationales","Decreto federale sulla Fase di potenziamento 2023 delle strade nazionali","Conclus federal davart il pass da cumplettaziun 2023 da las vias naziunalas","Federal Decree on the 2023 expansion programme for the national highways",326,"2024-11-24",5615207,2530270,"45.0610280262152",25141,7064,2498065,1181560,1316505,"47.2990094333014",,7,4,13,2,20,6,"9",23,"14",,0,0,2026-06-14 18:17:40.904972
 10,"Totalrevision vom 12. September 1848","Revision totale du 12 septembre 1848","Revisione totale del 12 settembre 1848","","Total revision of 12th September 1848",1,"1848-06-06",,,,,,,,,,,14,3,5,3,19,6,"15.5",22,"6.5",1,1,0,2026-06-14 18:17:40.904972
-3880,"Bundesbeschluss über den Europäischen Wirtschaftsraum (EWR)","Arrêté fédéral sur l'espace économique européen (EEE)","Decreto federale sullo Spazio economico europeo (SEE)","Conclus federal davart iI spazi economic europeic (SEE)","Federal decree on European Economic Area",227,"1992-12-06",4546571,3580094,"78.7427272113423",23487,7027,3549580,1762872,1786708,"49.6642419666552",,6,2,14,4,20,6,"7",23,"16",0,0,0,2026-06-14 18:17:40.904972`;
+3880,"Bundesbeschluss über den Europäischen Wirtschaftsraum (EWR)","Arrêté fédéral sur l'espace économique européen (EEE)","Decreto federale sullo Spazio economico europeo (SEE)","Conclus federal davart iI spazi economic europeic (SEE)","Federal decree on European Economic Area",227,"1992-12-06",4546571,3580094,"78.7427272113423",23487,7027,3549580,1762872,1786708,"49.6642419666552",,6,2,14,4,20,6,"7",23,"16",0,0,0,2026-06-14 18:17:40.904972
+6360,"Volksinitiative «Für verantwortungsvolle Unternehmen – zum Schutz von Mensch und Umwelt»","Initiative populaire « Entreprises responsables – pour protéger l’être humain et l’environnement »","Iniziativa popolare «Per imprese responsabili – a tutela dell’essere umano e dell’ambiente»","Iniziativa federala dal pievel «Per interpresas responsablas - per proteger ils umans e l'ambient»","Federal Popular Initiative 'For responsible businesses – protecting human rights and the environment'",314,"2020-11-29",5495345,2584840,"47.0369012318608",16187,7844,2560809,1299129,1261680,"50.731194712296",,8,1,12,5,20,6,"8.5",23,"14.5",0,0,0,2026-06-14 18:17:40.904972
+6870,"Änderung des Bundesgesetzes über den zivilen Ersatzdienst (Zivildienstgesetz, ZDG)","Modification de la loi fédérale sur le service civil (LSC)","Modifica della legge federale sul servizio civile sostitutivo (Legge sul servizio civile, LSC)","Midada da la Lescha federala davart il servetsch civil","Amendment to the Civilian Service Act",331,"2026-06-14",5668117,3302498,"58.264464195",68240,12037,3222221,1690343,1531878,"52.458940588",0,15,5,5,1,20,6,"17.5",23,"5.5",,1,1,2026-06-14 18:17:40.904972`;
 
 // Vorlage 6730 (Nationalstrassen), four cantons.
 export const CANTON_CSV = `"vorlage_id","vorlage_titel_de","vorlage_titel_fr","vorlage_titel_it","vorlage_titel_rm","vorlage_titel_en","urnengang_id","urnengang_datum","kanton_nummer","kanton_bezeichnung","stimmberechtigte","stimmzettel_eingelegt","stimmbeteiligung","stimmzettel_leer","stimmzettel_ungueltig","stimmen_gueltig","stimmen_ja","stimmen_nein","ja_prozent","stimmen_ohne_antwort","standes_stimme","standes_staerke","provisorisch","daten_stand"
@@ -61,4 +65,14 @@ export const EXPECTED_1848 = {
   date: "1848-06-06",
   accepted: true,
   cantons_yes: 15.5,
+};
+
+/** Vorlage 6360: 50.7% yes but cantons 8.5 : 14.5, so the initiative failed. */
+export const EXPECTED_KONZERNVERANTWORTUNG = {
+  id: 6360,
+  yes_percent: 50.73,
+  accepted: false,
+  cantons_yes: 8.5,
+  cantons_no: 14.5,
+  cantonal_majority: false,
 };

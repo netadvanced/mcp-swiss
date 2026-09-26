@@ -2246,18 +2246,19 @@ the output language is German.
 ### `get_vote_details`
 
 One vote in detail: the national result, the vote type and themes, and the
-breakdown across all 26 cantons. When several votes share a polling day, the
-response lists the candidates instead of picking one.
+breakdown across all 26 cantons. When several votes match, the response lists up
+to 20 candidates (with `total_matches`) instead of picking one.
 
 ### Input
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
+| id | number | ❌ | Vote id, as returned by `search_votes` |
 | vote_title | string | ❌ | Partial or full vote title |
 | date | string | ❌ | Vote date in YYYY-MM-DD format |
 | lang | string | ❌ | Title language: de, fr, it, rm, en (default: de) |
 
-At least one of `vote_title` or `date` is required.
+At least one of `id`, `vote_title` or `date` is required.
 
 ---
 
@@ -2649,4 +2650,4 @@ List GWR buildings around a WGS84 point within a small radius, closest first (on
 ---
 
 *Specification generated from mcp-swiss source code.*  
-*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, data.bs.ch, geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), eida.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*
+*API sources: transport.opendata.ch, api.existenz.ch, api3.geo.admin.ch, zefix.admin.ch, openholidaysapi.org, ws.parlament.ch, aws.slf.ch/whiterisk.ch, geo.admin.ch (NABEL), service.post.ch, strompreis.elcom.admin.ch, pxweb.bfs.admin.ch, opendata.swiss, data.snb.ch, openerz.metaodi.ch, srf.ch, dam-api.bfs.admin.ch (federal votes), geo.admin.ch (SFOE dams), geo.admin.ch (hiking), api3.geo.admin.ch (ASTRA traffic), eida.ethz.ch (SED earthquakes), measurement-api.slf.ch (SLF snow), data.geo.admin.ch (MeteoSwiss pollen), api3.geo.admin.ch (BFS GWR buildings)*

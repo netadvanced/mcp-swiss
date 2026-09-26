@@ -1,4 +1,5 @@
 import { fetchText } from "../utils/http.js";
+import { cached } from "../utils/cache.js";
 
 // ── Base URLs ─────────────────────────────────────────────────────────────────
 
@@ -33,46 +34,53 @@ const LANGS: Lang[] = ["de", "fr", "it", "rm", "en"];
 export function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
   let row: string[] = [];
-  let field = "";
-  let quoted = false;
 
   // Strip a BOM; the BFS files are UTF-8 with one.
   const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const n = body.length;
+  let i = 0;
 
-  for (let i = 0; i < body.length; i++) {
-    const ch = body[i];
+  // Fields are cut out with slice(): appending char by char builds a rope per
+  // field, which held ~240 MB for the 10 MB canton file.
+  while (i < n) {
+    let field: string;
 
-    if (quoted) {
-      if (ch === '"') {
-        if (body[i + 1] === '"') {
+    if (body[i] === '"') {
+      i++;
+      field = "";
+      for (;;) {
+        const q = body.indexOf('"', i);
+        if (q === -1) {
+          field += body.slice(i);
+          i = n;
+          break;
+        }
+        field += body.slice(i, q);
+        i = q + 1;
+        if (body[i] === '"') {
           field += '"';
           i++;
         } else {
-          quoted = false;
+          break;
         }
-      } else {
-        field += ch;
       }
-      continue;
+    } else {
+      const start = i;
+      while (i < n && body[i] !== "," && body[i] !== "\n") i++;
+      field = body.slice(start, i);
+      if (field.endsWith("\r")) field = field.slice(0, -1);
     }
 
-    if (ch === '"') {
-      quoted = true;
-    } else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n") {
-      row.push(field);
+    row.push(field);
+    if (i >= n || body[i] === "\n") {
       rows.push(row);
       row = [];
-      field = "";
-    } else if (ch !== "\r") {
-      field += ch;
+    } else if (body[i] === "\r" && body[i + 1] === "\n") {
+      i++;
+      rows.push(row);
+      row = [];
     }
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
+    i++;
   }
 
   const [header, ...body_] = rows;
@@ -91,33 +99,32 @@ export function parseCsv(text: string): Record<string, string>[] {
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-let nationalCache: Record<string, string>[] | null = null;
-let cantonCache: Record<string, string>[] | null = null;
-let metaCache: Record<string, string>[] | null = null;
+type Row = Record<string, string>;
+
+/** BFS replaces the files after each vote (about four times a year). */
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** A 200 with an HTML error page or an empty body must not read as "no votes". */
+function load(url: string, timeoutMs?: number): () => Promise<Row[]> {
+  return async () => {
+    const rows = parseCsv(await fetchText(url, timeoutMs ? { timeoutMs } : undefined));
+    if (rows.length === 0 || !("vorlage_id" in rows[0])) {
+      throw new Error(`Unexpected format from the BFS export — ${url}`);
+    }
+    return rows;
+  };
+}
+
+const national = cached(CACHE_TTL_MS, load(NATIONAL_CSV_URL));
+/** Only get_vote_details needs this, so it stays out of the common path. */
+const canton = cached(CACHE_TTL_MS, load(CANTON_CSV_URL, CANTON_TIMEOUT_MS));
+const meta = cached(CACHE_TTL_MS, load(META_CSV_URL));
 
 /** Reset the module-level CSV caches. Tests must call this between cases. */
 export function clearVotingCache(): void {
-  nationalCache = null;
-  cantonCache = null;
-  metaCache = null;
-}
-
-async function loadNational(): Promise<Record<string, string>[]> {
-  nationalCache ??= parseCsv(await fetchText(NATIONAL_CSV_URL));
-  return nationalCache;
-}
-
-/** Only get_vote_details needs this, so it stays out of the common path. */
-async function loadCanton(): Promise<Record<string, string>[]> {
-  cantonCache ??= parseCsv(
-    await fetchText(CANTON_CSV_URL, { timeoutMs: CANTON_TIMEOUT_MS }),
-  );
-  return cantonCache;
-}
-
-async function loadMeta(): Promise<Record<string, string>[]> {
-  metaCache ??= parseCsv(await fetchText(META_CSV_URL));
-  return metaCache;
+  national.clear();
+  canton.clear();
+  meta.clear();
 }
 
 // ── Row helpers ───────────────────────────────────────────────────────────────
@@ -136,12 +143,12 @@ function round(value: number | null, digits = 2): number | null {
 }
 
 /** Fall back to German: `rm` and `en` titles are blank on many older votes. */
-function title(row: Record<string, string>, lang: Lang): string {
+function title(row: Row, lang: Lang): string {
   const chosen = row[`vorlage_titel_${lang}`]?.trim();
   return chosen || row.vorlage_titel_de?.trim() || "Unknown";
 }
 
-function asOf(rows: Record<string, string>[]): string | undefined {
+function asOf(rows: Row[]): string | undefined {
   return rows[0]?.daten_stand?.slice(0, 10) || undefined;
 }
 
@@ -159,9 +166,11 @@ interface NationalVote {
   cantons_no: number | null;
   /** null when no cantonal majority was required (ordinary law changes). */
   cantonal_majority: boolean | null;
+  /** Present only while BFS still flags the result as provisional. */
+  provisional?: true;
 }
 
-function toNationalVote(row: Record<string, string>, lang: Lang): NationalVote {
+function toNationalVote(row: Row, lang: Lang): NationalVote {
   return {
     id: Number(row.vorlage_id),
     title: title(row, lang),
@@ -178,11 +187,12 @@ function toNationalVote(row: Record<string, string>, lang: Lang): NationalVote {
       row.staendemehr === "" || row.staendemehr === undefined
         ? null
         : row.staendemehr === "1",
+    ...(row.provisorisch === "1" ? { provisional: true as const } : {}),
   };
 }
 
 /** True when the keyword appears in any official-language title. */
-function matchesTitle(row: Record<string, string>, needle: string): boolean {
+function matchesTitle(row: Row, needle: string): boolean {
   return LANGS.some((l) =>
     (row[`vorlage_titel_${l}`] ?? "").toLowerCase().includes(needle),
   );
@@ -190,6 +200,44 @@ function matchesTitle(row: Record<string, string>, needle: string): boolean {
 
 function normaliseLang(value: unknown): Lang {
   return LANGS.includes(value as Lang) ? (value as Lang) : "de";
+}
+
+/** A zero or negative limit must not reach slice(), where -1 means "all but one". */
+function clampLimit(value: unknown, fallback: number, max: number): number {
+  const n = Math.floor(Number(value ?? fallback));
+  return Number.isFinite(n) ? Math.max(1, Math.min(n, max)) : fallback;
+}
+
+/** The newest vote first, which is what every list here promises. */
+function byDateDesc(a: { date: string }, b: { date: string }): number {
+  return b.date.localeCompare(a.date);
+}
+
+const MAX_QUERY_LENGTH = 200;
+const MAX_MATCHES = 20;
+
+/**
+ * BFS lists some cantons twice for votes between 1960 and 1981 (the rows differ
+ * only in a detail such as the electorate). Keep one row per canton: the
+ * variant, first or last, whose yes/no counts add up to the national result.
+ */
+function onePerCanton(rows: Row[], vote: Row): { rows: Row[]; reconciled: boolean } {
+  const first = new Map<string, Row>();
+  const last = new Map<string, Row>();
+  for (const r of rows) {
+    if (!first.has(r.kanton_nummer)) first.set(r.kanton_nummer, r);
+    last.set(r.kanton_nummer, r);
+  }
+  if (first.size === rows.length) return { rows, reconciled: true };
+
+  const sum = (m: Map<string, Row>, col: string) =>
+    [...m.values()].reduce((t, r) => t + (num(r[col]) ?? 0), 0);
+  const adds = (m: Map<string, Row>) =>
+    sum(m, "stimmen_ja") === num(vote.stimmen_ja) &&
+    sum(m, "stimmen_nein") === num(vote.stimmen_nein);
+
+  if (adds(first)) return { rows: [...first.values()], reconciled: true };
+  return { rows: [...last.values()], reconciled: adds(last) };
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -246,10 +294,14 @@ export const votingTools = [
   {
     name: "get_vote_details",
     description:
-      "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give vote_title and/or date",
+      "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give id, or vote_title and/or date",
     inputSchema: {
       type: "object",
       properties: {
+        id: {
+          type: "number",
+          description: "Vote id from search_votes",
+        },
         vote_title: {
           type: "string",
           description: "Partial title, e.g. CO2-Gesetz",
@@ -271,9 +323,9 @@ export async function handleGetVotingResults(params: {
   limit?: number;
   lang?: string;
 }): Promise<string> {
-  const limit = Math.min(params.limit ?? 10, 50);
+  const limit = clampLimit(params.limit, 10, 50);
   const lang = normaliseLang(params.lang);
-  const rows = await loadNational();
+  const rows = await national.get();
 
   const matching = params.year
     ? rows.filter((r) => r.urnengang_datum?.startsWith(String(params.year)))
@@ -281,7 +333,7 @@ export async function handleGetVotingResults(params: {
 
   const votes = matching
     .map((r) => toNationalVote(r, lang))
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort(byDateDesc)
     .slice(0, limit);
 
   if (votes.length === 0) {
@@ -291,22 +343,17 @@ export async function handleGetVotingResults(params: {
       hint: "No federal vote that year. Federal votes run since 1848; omit year for the most recent.",
       source: SOURCE,
       data_url: DATA_URL,
+      as_of: asOf(rows),
     });
   }
 
-  const result = {
+  return JSON.stringify({
     count: votes.length,
     source: SOURCE,
     data_url: DATA_URL,
     as_of: asOf(rows),
     votes,
-  };
-
-  const json = JSON.stringify(result);
-  if (json.length > 48000) {
-    return JSON.stringify({ ...result, votes: votes.slice(0, 5) });
-  }
-  return json;
+  });
 }
 
 export async function handleSearchVotes(params: {
@@ -314,20 +361,23 @@ export async function handleSearchVotes(params: {
   limit?: number;
   lang?: string;
 }): Promise<string> {
-  if (!params.query?.trim()) {
+  const keyword = params.query?.trim();
+  if (!keyword) {
     throw new Error("query is required: a keyword from the vote title, in any official language.");
   }
+  if (keyword.length > MAX_QUERY_LENGTH) {
+    throw new Error(`query is too long (max ${MAX_QUERY_LENGTH} characters). Use a keyword.`);
+  }
 
-  const limit = Math.min(params.limit ?? 5, 20);
+  const limit = clampLimit(params.limit, 5, 20);
   const lang = normaliseLang(params.lang);
-  const keyword = params.query.trim();
   const needle = keyword.toLowerCase();
 
-  const rows = await loadNational();
+  const rows = await national.get();
   const votes = rows
     .filter((r) => matchesTitle(r, needle))
     .map((r) => toNationalVote(r, lang))
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort(byDateDesc)
     .slice(0, limit);
 
   if (votes.length === 0) {
@@ -336,6 +386,9 @@ export async function handleSearchVotes(params: {
       count: 0,
       votes: [],
       hint: "Try a shorter keyword. Titles are the official wording in German, French, Italian, Romansh and English.",
+      source: SOURCE,
+      data_url: DATA_URL,
+      as_of: asOf(rows),
     });
   }
 
@@ -350,55 +403,67 @@ export async function handleSearchVotes(params: {
 }
 
 export async function handleGetVoteDetails(params: {
+  id?: number;
   vote_title?: string;
   date?: string;
   lang?: string;
 }): Promise<string> {
-  if (!params.vote_title && !params.date) {
-    throw new Error("Provide vote_title or date (YYYY-MM-DD). Use search_votes to find either.");
+  const needle = params.vote_title?.trim().toLowerCase();
+  const date = params.date?.trim();
+  const wantedId = params.id === undefined ? undefined : String(params.id);
+  if (!needle && !date && wantedId === undefined) {
+    throw new Error("Provide id, vote_title or date (YYYY-MM-DD). Use search_votes to find them.");
+  }
+  if (needle && needle.length > MAX_QUERY_LENGTH) {
+    throw new Error(`vote_title is too long (max ${MAX_QUERY_LENGTH} characters).`);
   }
 
   const lang = normaliseLang(params.lang);
-  const rows = await loadNational();
-  const needle = params.vote_title?.trim().toLowerCase();
-  const date = params.date?.trim();
+  const rows = await national.get();
 
   const matched = rows.filter(
     (r) =>
+      (wantedId === undefined || r.vorlage_id === wantedId) &&
       (!needle || matchesTitle(r, needle)) &&
       (!date || r.urnengang_datum === date),
   );
 
   if (matched.length === 0) {
     throw new Error(
-      "No federal vote matches those parameters. Use search_votes for an exact title, or pass a date as YYYY-MM-DD.",
+      "No federal vote matches those parameters. Use search_votes for an exact title or id, or pass a date as YYYY-MM-DD.",
     );
   }
 
-  // Several votes share a polling day, so narrowing is the caller's to do.
+  // Several votes can match (a busy polling day, a broad keyword), so narrowing
+  // is the caller's to do.
   if (matched.length > 1) {
+    const listed = matched
+      .map((r) => ({ id: Number(r.vorlage_id), title: title(r, lang), date: r.urnengang_datum }))
+      .sort(byDateDesc)
+      .slice(0, MAX_MATCHES);
     return JSON.stringify({
-      matches: matched.map((r) => ({
-        id: Number(r.vorlage_id),
-        title: title(r, lang),
-        date: r.urnengang_datum,
-      })),
-      hint: "Several votes match. Repeat with a vote_title distinctive enough to pick one.",
+      total_matches: matched.length,
+      matches: listed,
+      hint: "Several votes match. Repeat with the id of one, or a more distinctive vote_title.",
       source: SOURCE,
+      as_of: asOf(rows),
     });
   }
 
   const row = matched[0];
   const id = row.vorlage_id;
-  const [meta, cantonRows] = await Promise.all([loadMeta(), loadCanton()]);
+  const [metaRows, cantonRows] = await Promise.all([meta.get(), canton.get()]);
 
-  const metaRow = meta.find((m) => m.vorlage_id === id);
+  const metaRow = metaRows.find((m) => m.vorlage_id === id);
   const themes = [1, 2, 3]
     .map((n) => metaRow?.[`thema${n}_name_${lang}`] || metaRow?.[`thema${n}_name_de`])
     .filter((t): t is string => Boolean(t && t.trim()));
 
-  const cantons = cantonRows
-    .filter((c) => c.vorlage_id === id)
+  const { rows: perCanton, reconciled } = onePerCanton(
+    cantonRows.filter((c) => c.vorlage_id === id),
+    row,
+  );
+  const cantons = perCanton
     .sort((a, b) => Number(a.kanton_nummer) - Number(b.kanton_nummer))
     .map((c) => ({
       canton: c.kanton_bezeichnung,
@@ -425,6 +490,9 @@ export async function handleGetVoteDetails(params: {
   if (cantons.length === 0) {
     detail.note =
       "No per-canton figures for this vote — the BFS canton series starts in 1866.";
+  } else if (!reconciled) {
+    detail.note =
+      "The BFS canton rows for this vote do not add up to the national totals; trust `national`.";
   }
 
   return JSON.stringify(detail);
@@ -442,7 +510,7 @@ export async function handleVoting(
     case "search_votes":
       return handleSearchVotes(args as { query: string; limit?: number; lang?: string });
     case "get_vote_details":
-      return handleGetVoteDetails(args as { vote_title?: string; date?: string; lang?: string });
+      return handleGetVoteDetails(args as { id?: number; vote_title?: string; date?: string; lang?: string });
     default:
       throw new Error(`Unknown voting tool: ${name}`);
   }

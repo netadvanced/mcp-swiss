@@ -84,6 +84,20 @@ describe("search_votes (live)", () => {
     expect(vote.cantons_yes).toBe(7);
     expect(vote.cantons_no).toBe(16);
     expect(vote.cantonal_majority).toBe(false);
+    // Official counts; a change in number formatting upstream would null these.
+    expect(vote.yes_count).toBe(1762872);
+    expect(vote.no_count).toBe(1786708);
+  });
+
+  // 2020-11-29: 50.7% yes, but the cantons said no (8.5 : 14.5).
+  it("does not count a vote as accepted on the popular majority alone", async () => {
+    const result = JSON.parse(await handleSearchVotes({ query: "verantwortungsvolle Unternehmen" }));
+    const vote = result.votes.find((v: { id: number }) => v.id === 6360);
+
+    expect(vote.yes_percent).toBeGreaterThan(50);
+    expect(vote.accepted).toBe(false);
+    expect(vote.cantonal_majority).toBe(false);
+    expect(vote.cantons_yes).toBe(8.5);
   });
 
   it("finds the same vote from its French title", async () => {
@@ -130,6 +144,49 @@ describe("get_vote_details (live)", () => {
         expect(canton.yes_percent).toBeGreaterThanOrEqual(0);
         expect(canton.yes_percent).toBeLessThanOrEqual(100);
       }
+    },
+    SLOW,
+  );
+
+  it(
+    "adds up: the cantons sum to the national result",
+    async () => {
+      const result = JSON.parse(await handleGetVoteDetails({ id: 3880 }));
+      const sum = (key: "yes_count" | "no_count") =>
+        result.cantons.reduce((t: number, c: Record<string, number>) => t + c[key], 0);
+
+      expect(sum("yes_count")).toBe(result.national.yes_count);
+      expect(sum("no_count")).toBe(result.national.no_count);
+    },
+    SLOW,
+  );
+
+  // BFS lists some cantons twice for 1960-1981; this is the Mitenand initiative.
+  it(
+    "returns one row per canton for a vote where BFS lists cantons twice",
+    async () => {
+      const result = JSON.parse(await handleGetVoteDetails({ id: 3050 }));
+      const names = result.cantons.map((c: { canton: string }) => c.canton);
+
+      expect(result.date).toBe("1981-04-05");
+      expect(result.cantons).toHaveLength(26);
+      expect(new Set(names).size).toBe(26);
+      expect(result.cantons.reduce((t: number, c: { yes_count: number }) => t + c.yes_count, 0)).toBe(
+        result.national.yes_count,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "has no popular counts for the 1848 vote and says why there are no cantons",
+    async () => {
+      const result = JSON.parse(await handleGetVoteDetails({ date: "1848-06-06" }));
+
+      expect(result.national.yes_count).toBeNull();
+      expect(result.national.turnout).toBeNull();
+      expect(result.national.cantons_yes).toBe(15.5);
+      expect(result.cantons).toEqual([]);
     },
     SLOW,
   );

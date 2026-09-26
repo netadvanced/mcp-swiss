@@ -262,7 +262,7 @@
     },
     {
       "name": "get_vote_details",
-      "description": "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give vote_title and/or date"
+      "description": "One federal vote in detail: national totals, type, theme, per-canton breakdown. Give id, or vote_title and/or date"
     },
     {
       "name": "search_dams",
