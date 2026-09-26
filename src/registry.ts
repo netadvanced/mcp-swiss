@@ -54,7 +54,7 @@ export const moduleRegistry: Record<string, ModuleEntry> = {
   snb:         { description: "SNB exchange rates and history",                                          tools: snbTools,         handler: handleSnb },
   recycling:   { description: "Waste collection dates and types (Zurich)",                               tools: recyclingTools,   handler: handleRecycling },
   news:        { description: "SRF news headlines and search",                                           tools: newsTools,        handler: handleNews },
-  voting:      { description: "Popular vote results (Basel-Stadt open data)",                            tools: votingTools,      handler: handleVoting },
+  voting:      { description: "Federal popular vote results since 1848",                                 tools: votingTools,      handler: handleVoting },
   dams:        { description: "Swiss dams and reservoirs",                                               tools: damsTools,        handler: handleDams },
   hiking:      { description: "Hiking trail closures",                                                   tools: hikingTools,      handler: handleHiking },
   realestate:  { description: "Property price and rent indices, real-estate datasets",                   tools: realEstateTools,  handler: handleRealEstate },

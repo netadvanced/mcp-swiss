@@ -68,7 +68,7 @@ src/
     snb.ts                  — Swiss National Bank exchange rates
     recycling.ts            — Zurich waste collection (OpenERZ)
     news.ts                 — SRF Swiss news headlines + search
-    voting.ts               — Swiss popular vote results (Basel-Stadt)
+    voting.ts               — Swiss federal popular vote results (BFS)
     dams.ts                 — Swiss federal dam registry
     hiking.ts               — Trail closures + hiking alerts (swisstopo)
     realestate.ts           — Property prices + rent index (BFS)

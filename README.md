@@ -39,7 +39,7 @@
 🏦 SNB Rates    — Swiss National Bank CHF exchange rates, historical data
 ♻️ Recycling    — Zurich city waste collection calendar (OpenERZ)
 📰 Swiss News   — SRF news headlines and keyword search
-🗳️ Voting       — Swiss popular vote results (Basel-Stadt open data)
+🗳️ Voting       — Federal popular vote results since 1848
 🌊 Dams         — Swiss federal dam registry (SFOE/swisstopo)
 🥾 Hiking       — Swiss trail closures and hiking alerts (swisstopo)
 🏠 Real Estate  — Swiss property prices, rent index, housing data (BFS)
@@ -533,9 +533,9 @@ Once connected, try asking your AI:
 
 | Tool | Description |
 |------|-------------|
-| `get_voting_results` | Swiss popular vote results from Basel-Stadt open data |
-| `search_votes` | Search popular votes by keyword (German/French/Italian) |
-| `get_vote_details` | Detailed per-district breakdown of a specific vote |
+| `get_voting_results` | Federal popular vote results: turnout, counts, cantonal majority |
+| `search_votes` | Search federal votes by keyword, in any official language |
+| `get_vote_details` | One vote in detail, broken down across all 26 cantons |
 
 ### 🌊 Dams & Reservoirs (3 tools)
 
@@ -622,7 +622,7 @@ All official Swiss open data — no API keys required:
 | [data.snb.ch](https://data.snb.ch) | Swiss National Bank CHF exchange rates | [SNB data portal](https://data.snb.ch/en) |
 | [openerz.metaodi.ch](https://openerz.metaodi.ch) | Zurich waste collection calendar (OpenERZ) | [OpenERZ](https://openerz.metaodi.ch) |
 | [srf.ch](https://www.srf.ch) | SRF Swiss news headlines | [SRF](https://www.srf.ch/news) |
-| [data.bs.ch](https://data.bs.ch) | Basel-Stadt popular vote results | [Open Data BS](https://data.bs.ch) |
+| [dam-api.bfs.admin.ch](https://opendata.swiss/en/dataset/eidgenossische-abstimmungsresultate) | Federal popular vote results | [BFS](https://www.bfs.admin.ch) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — SFOE | Swiss federal dam registry | [SFOE](https://www.bfe.admin.ch) |
 | [geo.admin.ch](https://api3.geo.admin.ch) — swisstopo | Swiss trail closures and hiking alerts | [swisstopo](https://www.swisstopo.admin.ch) |
 | [pxweb.bfs.admin.ch](https://www.pxweb.bfs.admin.ch) | BFS property prices + rent index | [BFS housing](https://www.bfs.admin.ch/bfs/en/home/statistics/construction-housing.html) |

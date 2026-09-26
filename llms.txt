@@ -20,7 +20,7 @@ MCP (Model Context Protocol) server providing Swiss public data to AI assistants
 - SNB Rates: CHF exchange rates, historical
 - Recycling: waste collection schedules (OpenERZ)
 - News: SRF headlines and search
-- Voting: popular vote results
+- Voting: federal popular vote results since 1848, per canton
 - Dams: federal dam registry
 - Hiking: trail closures and alerts
 - Real Estate: property prices, rent index
